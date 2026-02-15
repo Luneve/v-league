@@ -138,11 +138,11 @@ export default function CandidatesPage() {
                       <td className="px-4 py-3 font-medium text-text-primary">
                         {app.volunteerName || "Volunteer"}
                       </td>
-                      <td className="px-4 py-3 text-muted">{app.volunteerCity || "—"}</td>
+                      <td className="px-4 py-3 text-muted">{app.volunteerCity || <span className="text-muted">-</span>}</td>
                       <td className="px-4 py-3">
                         {leagueCfg ? (
                           <Badge variant="default" size="sm">{leagueCfg.label}</Badge>
-                        ) : "—"}
+                        ) : <span className="text-muted">-</span>}
                       </td>
                       <td className="px-4 py-3">
                         <Badge variant={statusCfg.variant as any} size="sm">{statusCfg.label}</Badge>
@@ -210,7 +210,7 @@ export default function CandidatesPage() {
                       {LEAGUE_CONFIG[selectedApp.volunteerLeague].label}
                     </Badge>
                   )}
-                  <span>{selectedApp.volunteerCity || "—"}</span>
+                  <span>{selectedApp.volunteerCity || "-"}</span>
                 </div>
               </div>
             </div>

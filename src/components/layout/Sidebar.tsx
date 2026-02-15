@@ -149,7 +149,7 @@ function Sidebar({ role, collapsed = false, onClose }: SidebarProps) {
       className={`
         flex h-full flex-col bg-surface border-r border-border
         ${collapsed ? "w-16" : "w-64"}
-        transition-all duration-200
+        transition-[width] duration-200 ease-in-out
       `}
     >
       {/* Logo */}
