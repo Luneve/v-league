@@ -1,0 +1,67 @@
+"use client";
+
+import { useState } from "react";
+import { mockSeasons } from "@/mocks";
+import { SurfaceCard } from "@/components/ui/SurfaceCard";
+import { Badge } from "@/components/ui/Badge";
+import { Button } from "@/components/ui/Button";
+import { Select } from "@/components/ui/Select";
+import { useToast } from "@/components/ui/Toast";
+import { formatDate } from "@/lib/utils";
+
+export default function SeasonsPage() {
+  const { toast } = useToast();
+  const [duration, setDuration] = useState("90");
+
+  const handleCreate = () => {
+    toast("success", `New ${duration}-day season will start after the current season ends.`);
+  };
+
+  return (
+    <div className="max-w-3xl">
+      <h1 className="text-2xl font-bold text-text-primary mb-6">Season Management</h1>
+
+      {/* Current / Past Seasons */}
+      <div className="flex flex-col gap-4 mb-8">
+        {mockSeasons.map((season) => (
+          <SurfaceCard key={season.id} spotlight padding="md">
+            <div className="flex items-center justify-between">
+              <div>
+                <div className="flex items-center gap-2 mb-1">
+                  <h3 className="text-base font-semibold text-text-primary">
+                    {formatDate(season.startDate)} — {formatDate(season.endDate)}
+                  </h3>
+                  {season.active && <Badge variant="success" size="sm">Active</Badge>}
+                </div>
+                <p className="text-sm text-muted">{season.durationDays} days</p>
+              </div>
+            </div>
+          </SurfaceCard>
+        ))}
+      </div>
+
+      {/* Create New Season */}
+      <SurfaceCard padding="md">
+        <h2 className="text-lg font-semibold text-text-primary mb-4">Schedule Next Season</h2>
+        <div className="flex items-end gap-4">
+          <div className="min-w-[200px]">
+            <Select
+              label="Duration"
+              options={[
+                { value: "30", label: "30 days" },
+                { value: "60", label: "60 days" },
+                { value: "90", label: "90 days (default)" },
+                { value: "120", label: "120 days" },
+              ]}
+              value={duration}
+              onChange={setDuration}
+            />
+          </div>
+          <Button variant="primary" onClick={handleCreate}>
+            Schedule Season
+          </Button>
+        </div>
+      </SurfaceCard>
+    </div>
+  );
+}
