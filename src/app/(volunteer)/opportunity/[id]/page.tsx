@@ -29,7 +29,8 @@ export default function OpportunityDetailPage() {
 
   const conflict = useMemo(() => {
     if (!opportunity) return null;
-    return hasTimeOverlap(mockApplications, opportunity);
+    const otherApps = mockApplications.filter((a) => a.opportunityId !== opportunity.id);
+    return hasTimeOverlap(otherApps, opportunity);
   }, [opportunity]);
 
   if (!opportunity) {
@@ -110,11 +111,11 @@ export default function OpportunityDetailPage() {
         </div>
       )}
 
-      <div className="flex flex-col lg:flex-row gap-6">
+      <div className="flex flex-col lg:flex-row lg:items-stretch gap-6">
         {/* Main content */}
-        <div className="flex-1 max-w-3xl">
+        <div className="flex-1 lg:max-w-3xl flex flex-col gap-6">
           {/* Description */}
-          <SurfaceCard padding="md" className="mb-6">
+          <SurfaceCard padding="md">
             <h2 className="text-lg font-semibold text-text-primary mb-3">Description</h2>
             <p className="text-sm text-text-primary leading-relaxed whitespace-pre-wrap">
               {opportunity.description}
@@ -122,7 +123,7 @@ export default function OpportunityDetailPage() {
           </SurfaceCard>
 
           {/* Info grid */}
-          <SurfaceCard padding="md" className="mb-6">
+          <SurfaceCard padding="md" className="flex-1">
             <h2 className="text-lg font-semibold text-text-primary mb-4">Details</h2>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <InfoItem label="Date Range" value={`${formatDate(opportunity.startDate)}${opportunity.startDate !== opportunity.endDate ? ` — ${formatDate(opportunity.endDate)}` : ""}`} />
@@ -136,9 +137,89 @@ export default function OpportunityDetailPage() {
               <InfoItem label="Apply Deadline" value={formatDate(opportunity.applyDeadline)} />
             </div>
           </SurfaceCard>
+        </div>
+
+        {/* Right sidebar */}
+        <div className="lg:w-80 flex flex-col gap-6">
+          <SurfaceCard spotlight padding="md">
+            <div className="text-center mb-4">
+              <p className="text-3xl font-bold text-accent">{opportunity.pointsReward}</p>
+              <p className="text-sm text-muted">points reward</p>
+            </div>
+
+            {/* Spots progress */}
+            <div className="mb-4">
+              <div className="flex items-center justify-between text-sm mb-1.5">
+                <span className="text-muted">Spots</span>
+                <span className="text-text-primary font-medium">{opportunity.currentApplicants}/{opportunity.capacity}</span>
+              </div>
+              <div className="h-2 rounded-full bg-surface-2">
+                <div
+                  className="h-2 rounded-full bg-accent transition-all"
+                  style={{ width: `${Math.min(100, (opportunity.currentApplicants / opportunity.capacity) * 100)}%` }}
+                />
+              </div>
+            </div>
+
+            {/* Deadline */}
+            <div className="mb-4 text-sm text-muted text-center">
+              {deadlineDays > 0 ? (
+                <span>{deadlineDays} days until deadline</span>
+              ) : (
+                <span className="text-danger">Deadline passed</span>
+              )}
+            </div>
+
+            {/* Conflict warning */}
+            {conflict && (
+              <div className="mb-4 rounded-xl bg-warning-light border border-warning/20 p-3">
+                <p className="text-xs font-medium text-warning">
+                  Schedule conflict with &quot;{conflict.opportunity.title}&quot; on {conflict.opportunity.startDate} ({conflict.opportunity.startTime}–{conflict.opportunity.endTime})
+                </p>
+              </div>
+            )}
+
+            {/* Age restriction warning */}
+            {opportunity.ageRestriction && !meetsAge && (
+              <div className="mb-4 rounded-xl bg-danger-light border border-danger/20 p-3">
+                <p className="text-xs font-medium text-danger">
+                  You must be {opportunity.ageRestriction}+ to apply for this opportunity.
+                </p>
+              </div>
+            )}
+
+            {/* Already applied */}
+            {existingApplication && (
+              <div className="mb-4 text-center">
+                <Badge variant="info" size="md">You have applied</Badge>
+              </div>
+            )}
+
+            {/* Apply button */}
+            {opportunity.status === "open" && !existingApplication && (
+              <Button
+                variant="primary"
+                fullWidth
+                disabled={!canApply || !meetsAge}
+                onClick={() => setApplyModalOpen(true)}
+              >
+                Apply Now
+              </Button>
+            )}
+
+            {opportunity.status === "closed" && (
+              <Button variant="secondary" fullWidth disabled>
+                Applications Closed
+              </Button>
+            )}
+
+            {opportunity.status === "completed" && (
+              <p className="text-sm text-muted text-center">This opportunity has concluded.</p>
+            )}
+          </SurfaceCard>
 
           {/* Contacts */}
-          <SurfaceCard padding="md">
+          <SurfaceCard padding="md" className="flex-1">
             <h2 className="text-lg font-semibold text-text-primary mb-3">Contacts</h2>
             <div className="flex flex-col gap-2 text-sm">
               {opportunity.contacts.telegram && (
@@ -155,88 +236,6 @@ export default function OpportunityDetailPage() {
               )}
             </div>
           </SurfaceCard>
-        </div>
-
-        {/* Right sidebar */}
-        <div className="lg:w-80">
-          <div className="lg:sticky lg:top-24">
-            <SurfaceCard spotlight padding="md">
-              <div className="text-center mb-4">
-                <p className="text-3xl font-bold text-accent">{opportunity.pointsReward}</p>
-                <p className="text-sm text-muted">points reward</p>
-              </div>
-
-              {/* Spots progress */}
-              <div className="mb-4">
-                <div className="flex items-center justify-between text-sm mb-1.5">
-                  <span className="text-muted">Spots</span>
-                  <span className="text-text-primary font-medium">{opportunity.currentApplicants}/{opportunity.capacity}</span>
-                </div>
-                <div className="h-2 rounded-full bg-surface-2">
-                  <div
-                    className="h-2 rounded-full bg-accent transition-all"
-                    style={{ width: `${Math.min(100, (opportunity.currentApplicants / opportunity.capacity) * 100)}%` }}
-                  />
-                </div>
-              </div>
-
-              {/* Deadline */}
-              <div className="mb-4 text-sm text-muted text-center">
-                {deadlineDays > 0 ? (
-                  <span>{deadlineDays} days until deadline</span>
-                ) : (
-                  <span className="text-danger">Deadline passed</span>
-                )}
-              </div>
-
-              {/* Conflict warning */}
-              {conflict && (
-                <div className="mb-4 rounded-xl bg-warning-light border border-warning/20 p-3">
-                  <p className="text-xs font-medium text-warning">
-                    Schedule conflict with &quot;{conflict.opportunity.title}&quot; on {conflict.opportunity.startDate} ({conflict.opportunity.startTime}–{conflict.opportunity.endTime})
-                  </p>
-                </div>
-              )}
-
-              {/* Age restriction warning */}
-              {opportunity.ageRestriction && !meetsAge && (
-                <div className="mb-4 rounded-xl bg-danger-light border border-danger/20 p-3">
-                  <p className="text-xs font-medium text-danger">
-                    You must be {opportunity.ageRestriction}+ to apply for this opportunity.
-                  </p>
-                </div>
-              )}
-
-              {/* Already applied */}
-              {existingApplication && (
-                <div className="mb-4 text-center">
-                  <Badge variant="info" size="md">You have applied</Badge>
-                </div>
-              )}
-
-              {/* Apply button */}
-              {opportunity.status === "open" && !existingApplication && (
-                <Button
-                  variant="primary"
-                  fullWidth
-                  disabled={!canApply || !meetsAge}
-                  onClick={() => setApplyModalOpen(true)}
-                >
-                  Apply Now
-                </Button>
-              )}
-
-              {opportunity.status === "closed" && (
-                <Button variant="secondary" fullWidth disabled>
-                  Applications Closed
-                </Button>
-              )}
-
-              {opportunity.status === "completed" && (
-                <p className="text-sm text-muted text-center">This opportunity has concluded.</p>
-              )}
-            </SurfaceCard>
-          </div>
         </div>
       </div>
 
