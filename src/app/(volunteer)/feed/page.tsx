@@ -26,9 +26,17 @@ const filters: FilterConfig[] = [
     placeholder: "All categories",
   },
   {
-    key: "deadline",
-    label: "Deadline before",
-    type: "date",
+    key: "availableWithin",
+    label: "Available within",
+    type: "select",
+    options: [
+      { value: "7", label: "Next 7 days" },
+      { value: "14", label: "Next 14 days" },
+      { value: "30", label: "Next 30 days" },
+      { value: "60", label: "Next 60 days" },
+      { value: "90", label: "Next 90 days" },
+    ],
+    placeholder: "Any time",
   },
   {
     key: "organization",
@@ -37,16 +45,14 @@ const filters: FilterConfig[] = [
     placeholder: "Search org...",
   },
   {
-    key: "minPoints",
-    label: "Min points",
-    type: "number",
-    placeholder: "0",
-  },
-  {
-    key: "maxPoints",
-    label: "Max points",
-    type: "number",
-    placeholder: "999",
+    key: "points",
+    label: "Points",
+    type: "range",
+    rangeKeys: ["minPoints", "maxPoints"],
+    min: 0,
+    max: 200,
+    step: 5,
+    unit: " pts",
   },
 ];
 
@@ -54,7 +60,7 @@ export default function FeedPage() {
   const [filterValues, setFilterValues] = useState<Record<string, string>>({
     city: mockCurrentVolunteer.city,
     category: "",
-    deadline: "",
+    availableWithin: "",
     organization: "",
     minPoints: "",
     maxPoints: "",
@@ -68,7 +74,7 @@ export default function FeedPage() {
     setFilterValues({
       city: mockCurrentVolunteer.city,
       category: "",
-      deadline: "",
+      availableWithin: "",
       organization: "",
       minPoints: "",
       maxPoints: "",
@@ -82,7 +88,11 @@ export default function FeedPage() {
 
       if (filterValues.city && opp.city !== filterValues.city) return false;
       if (filterValues.category && opp.category !== filterValues.category) return false;
-      if (filterValues.deadline && opp.applyDeadline > filterValues.deadline) return false;
+      if (filterValues.availableWithin) {
+        const cutoff = new Date();
+        cutoff.setDate(cutoff.getDate() + Number(filterValues.availableWithin));
+        if (new Date(opp.startDate) > cutoff) return false;
+      }
       if (filterValues.organization && !opp.organizationName.toLowerCase().includes(filterValues.organization.toLowerCase())) return false;
       if (filterValues.minPoints && opp.pointsReward < Number(filterValues.minPoints)) return false;
       if (filterValues.maxPoints && opp.pointsReward > Number(filterValues.maxPoints)) return false;
