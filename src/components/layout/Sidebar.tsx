@@ -153,7 +153,7 @@ function Sidebar({ role, collapsed = false, onClose }: SidebarProps) {
       `}
     >
       {/* Logo */}
-      <div className="flex items-center gap-3 px-4 py-5 border-b border-border">
+      <div className="flex h-16 items-center gap-3 px-4 border-b border-border">
         <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-accent text-white font-bold text-sm">
           V
         </div>
