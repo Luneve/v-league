@@ -137,7 +137,7 @@ export async function updateConfig(key: string, value: Record<string, unknown>) 
 
   const { error } = await supabase
     .from("config")
-    .update({ value, updated_at: new Date().toISOString() })
+    .update({ value: value as unknown as import("@/types/supabase").Json, updated_at: new Date().toISOString() })
     .eq("key", key);
 
   return { error: error?.message ?? null };

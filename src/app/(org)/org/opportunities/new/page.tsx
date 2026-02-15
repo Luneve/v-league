@@ -11,6 +11,7 @@ import { DateRangePicker } from "@/components/ui/DateRangePicker";
 import { TimeRangeInput } from "@/components/ui/TimeRangeInput";
 import { useToast } from "@/components/ui/Toast";
 import { CATEGORIES, CITIES, AGE_RESTRICTIONS } from "@/lib/constants";
+import { createOpportunity, updateOpportunityStatus } from "@/lib/actions";
 
 export default function CreateOpportunityPage() {
   const router = useRouter();
@@ -64,7 +65,7 @@ export default function CreateOpportunityPage() {
     return e;
   };
 
-  const handleSave = (publish: boolean) => {
+  const handleSave = async (publish: boolean) => {
     if (publish) {
       const e = validate();
       if (Object.keys(e).length > 0) {
@@ -74,11 +75,40 @@ export default function CreateOpportunityPage() {
       }
     }
     setSaving(true);
-    setTimeout(() => {
+
+    const { data, error } = await createOpportunity({
+      title: form.title,
+      category: form.category,
+      city: form.city,
+      description: form.description,
+      start_date: form.startDate,
+      end_date: form.endDate,
+      start_time: form.startTime,
+      end_time: form.endTime,
+      capacity: Number(form.capacity),
+      age_restriction: form.ageRestriction ? Number(form.ageRestriction) : null,
+      points_reward: Number(form.pointsReward),
+      apply_deadline: form.applyDeadline,
+      contacts: {
+        telegram: form.telegram || undefined,
+        phone: form.phone || undefined,
+      },
+    });
+
+    if (error) {
       setSaving(false);
-      toast("success", publish ? "Opportunity published!" : "Draft saved!");
-      router.push("/org/opportunities");
-    }, 800);
+      toast("error", error);
+      return;
+    }
+
+    // If publishing, set status to 'open'
+    if (publish && data) {
+      await updateOpportunityStatus(data.id, "open");
+    }
+
+    setSaving(false);
+    toast("success", publish ? "Opportunity published!" : "Draft saved!");
+    router.push("/org/opportunities");
   };
 
   return (
@@ -86,7 +116,6 @@ export default function CreateOpportunityPage() {
       <h1 className="text-2xl font-bold text-text-primary mb-6">Create Opportunity</h1>
 
       <div className="flex flex-col gap-6">
-        {/* Basic Info */}
         <SurfaceCard padding="md">
           <h2 className="text-lg font-semibold text-text-primary mb-4">Basic Info</h2>
           <div className="flex flex-col gap-4">
@@ -99,7 +128,6 @@ export default function CreateOpportunityPage() {
           </div>
         </SurfaceCard>
 
-        {/* Schedule */}
         <SurfaceCard padding="md">
           <h2 className="text-lg font-semibold text-text-primary mb-4">Schedule</h2>
           <div className="flex flex-col gap-4">
@@ -108,7 +136,6 @@ export default function CreateOpportunityPage() {
           </div>
         </SurfaceCard>
 
-        {/* Requirements */}
         <SurfaceCard padding="md">
           <h2 className="text-lg font-semibold text-text-primary mb-4">Requirements</h2>
           <div className="grid grid-cols-2 gap-4">
@@ -117,7 +144,6 @@ export default function CreateOpportunityPage() {
           </div>
         </SurfaceCard>
 
-        {/* Reward & Deadline */}
         <SurfaceCard padding="md">
           <h2 className="text-lg font-semibold text-text-primary mb-4">Reward & Deadline</h2>
           <div className="grid grid-cols-2 gap-4">
@@ -126,7 +152,6 @@ export default function CreateOpportunityPage() {
           </div>
         </SurfaceCard>
 
-        {/* Contacts */}
         <SurfaceCard padding="md">
           <h2 className="text-lg font-semibold text-text-primary mb-4">Contacts</h2>
           <div className="grid grid-cols-2 gap-4">
@@ -135,7 +160,6 @@ export default function CreateOpportunityPage() {
           </div>
         </SurfaceCard>
 
-        {/* Actions */}
         <div className="flex items-center justify-end gap-3">
           <Button variant="outline" onClick={() => handleSave(false)} loading={saving}>
             Save as Draft

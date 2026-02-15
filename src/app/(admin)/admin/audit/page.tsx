@@ -1,9 +1,13 @@
 "use client";
 
-import { mockAuditLog } from "@/mocks";
+import { useState, useEffect } from "react";
 import { SurfaceCard } from "@/components/ui/SurfaceCard";
 import { Badge } from "@/components/ui/Badge";
+import { Skeleton } from "@/components/ui/Skeleton";
 import { formatRelativeTime } from "@/lib/utils";
+import { getAuditLogs } from "@/lib/actions";
+import { mapAuditLogEntry } from "@/lib/mappers";
+import type { AuditLogEntry } from "@/types";
 
 const roleBadge: Record<string, string> = {
   volunteer: "info",
@@ -12,6 +16,29 @@ const roleBadge: Record<string, string> = {
 };
 
 export default function AuditLogPage() {
+  const [entries, setEntries] = useState<AuditLogEntry[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    async function load() {
+      const { data } = await getAuditLogs({ pageSize: 50 });
+      if (data) {
+        setEntries(data.map(mapAuditLogEntry));
+      }
+      setLoading(false);
+    }
+    load();
+  }, []);
+
+  if (loading) {
+    return (
+      <div className="flex flex-col gap-6">
+        <Skeleton className="h-8 w-48" />
+        <Skeleton className="h-64 w-full" />
+      </div>
+    );
+  }
+
   return (
     <div>
       <h1 className="text-2xl font-bold text-text-primary mb-6">Audit Log</h1>
@@ -28,7 +55,7 @@ export default function AuditLogPage() {
             </tr>
           </thead>
           <tbody>
-            {mockAuditLog.map((entry) => (
+            {entries.map((entry) => (
               <tr key={entry.id} className="border-b border-border hover:bg-surface-2/30 transition-colors">
                 <td className="px-4 py-3">
                   <div className="flex items-center gap-2">
@@ -46,7 +73,7 @@ export default function AuditLogPage() {
         </table>
       </SurfaceCard>
 
-      {mockAuditLog.length === 0 && (
+      {entries.length === 0 && (
         <div className="text-center py-12">
           <p className="text-sm text-muted">No activity logged yet.</p>
         </div>

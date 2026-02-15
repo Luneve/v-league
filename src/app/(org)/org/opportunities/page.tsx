@@ -1,34 +1,62 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
-import { mockOpportunities, mockCurrentOrg } from "@/mocks";
 import { SurfaceCard } from "@/components/ui/SurfaceCard";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { Tabs } from "@/components/ui/Tabs";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { Skeleton } from "@/components/ui/Skeleton";
 import { OPPORTUNITY_STATUS_BADGE } from "@/lib/constants";
 import { formatDate } from "@/lib/utils";
-
-const orgOpps = mockOpportunities.filter((o) => o.organizationId === mockCurrentOrg.id);
-
-const tabs = [
-  { id: "all", label: "All", count: orgOpps.length },
-  { id: "draft", label: "Draft", count: orgOpps.filter((o) => o.status === "draft").length },
-  { id: "open", label: "Open", count: orgOpps.filter((o) => o.status === "open").length },
-  { id: "closed", label: "Closed", count: orgOpps.filter((o) => o.status === "closed").length },
-  { id: "completed", label: "Completed", count: orgOpps.filter((o) => o.status === "completed").length },
-  { id: "cancelled", label: "Cancelled", count: orgOpps.filter((o) => o.status === "cancelled").length },
-];
+import { listOpportunities } from "@/lib/actions";
+import { useProfile } from "@/hooks/useProfile";
+import { mapOpportunity } from "@/lib/mappers";
+import type { Opportunity, OrganizationProfile } from "@/types";
 
 export default function OrgOpportunitiesPage() {
+  const { profile } = useProfile();
+  const [opportunities, setOpportunities] = useState<Opportunity[]>([]);
+  const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("all");
 
-  const filtered =
-    activeTab === "all"
-      ? orgOpps
-      : orgOpps.filter((o) => o.status === activeTab);
+  const org = profile as OrganizationProfile | null;
+
+  useEffect(() => {
+    async function load() {
+      if (!org) return;
+      const { data } = await listOpportunities({ organizationId: org.id });
+      if (data) {
+        setOpportunities(data.map(mapOpportunity));
+      }
+      setLoading(false);
+    }
+    load();
+  }, [org]);
+
+  const tabs = useMemo(() => [
+    { id: "all", label: "All", count: opportunities.length },
+    { id: "draft", label: "Draft", count: opportunities.filter((o) => o.status === "draft").length },
+    { id: "open", label: "Open", count: opportunities.filter((o) => o.status === "open").length },
+    { id: "closed", label: "Closed", count: opportunities.filter((o) => o.status === "closed").length },
+    { id: "completed", label: "Completed", count: opportunities.filter((o) => o.status === "completed").length },
+    { id: "cancelled", label: "Cancelled", count: opportunities.filter((o) => o.status === "cancelled").length },
+  ], [opportunities]);
+
+  const filtered = activeTab === "all" ? opportunities : opportunities.filter((o) => o.status === activeTab);
+
+  if (loading) {
+    return (
+      <div className="flex flex-col gap-6">
+        <Skeleton className="h-8 w-48" />
+        <Skeleton className="h-12 w-full" />
+        {Array.from({ length: 3 }).map((_, i) => (
+          <Skeleton key={i} className="h-20 w-full" />
+        ))}
+      </div>
+    );
+  }
 
   return (
     <div>

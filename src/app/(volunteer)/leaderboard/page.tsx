@@ -1,22 +1,84 @@
 "use client";
 
-import { mockMiniGroup, mockCurrentVolunteer, mockCurrentSeason } from "@/mocks";
+import { useState, useEffect } from "react";
 import { SurfaceCard } from "@/components/ui/SurfaceCard";
 import { Badge } from "@/components/ui/Badge";
+import { Skeleton } from "@/components/ui/Skeleton";
 import { LEAGUE_CONFIG } from "@/lib/constants";
 import { formatDate } from "@/lib/utils";
+import { getMyMiniGroup, getCurrentSeason, getVolunteerProfile } from "@/lib/actions";
+import { mapMiniGroup, mapSeason, mapVolunteerProfile } from "@/lib/mappers";
+import type { MiniGroup, Season, VolunteerProfile } from "@/types";
 
 export default function LeaderboardPage() {
-  const leagueCfg = LEAGUE_CONFIG[mockMiniGroup.league];
-  const myRank = mockMiniGroup.members.find((m) => m.volunteerId === mockCurrentVolunteer.id);
-  const topCount = mockMiniGroup.members.length >= 15 ? 5 : 3;
+  const [group, setGroup] = useState<MiniGroup | null>(null);
+  const [season, setSeason] = useState<Season | null>(null);
+  const [vol, setVol] = useState<VolunteerProfile | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [noGroup, setNoGroup] = useState(false);
+
+  useEffect(() => {
+    async function load() {
+      const [groupResult, seasonResult, profileResult] = await Promise.all([
+        getMyMiniGroup(),
+        getCurrentSeason(),
+        getVolunteerProfile(),
+      ]);
+
+      if (groupResult.data) {
+        setGroup(mapMiniGroup(groupResult.data));
+      } else {
+        setNoGroup(true);
+      }
+      if (seasonResult.data) {
+        setSeason(mapSeason(seasonResult.data));
+      }
+      if (profileResult.data) {
+        setVol(mapVolunteerProfile(profileResult.data));
+      }
+      setLoading(false);
+    }
+    load();
+  }, []);
+
+  if (loading) {
+    return (
+      <div className="flex flex-col gap-6 max-w-3xl">
+        <Skeleton className="h-8 w-48" />
+        <Skeleton className="h-24 w-full" />
+        <Skeleton className="h-64 w-full" />
+      </div>
+    );
+  }
+
+  if (noGroup || !group) {
+    return (
+      <div className="max-w-3xl">
+        <h1 className="text-2xl font-bold text-text-primary mb-2">Leaderboard</h1>
+        {season && (
+          <p className="text-sm text-muted mb-6">
+            Season: {formatDate(season.startDate)} — {formatDate(season.endDate)}
+          </p>
+        )}
+        <SurfaceCard padding="lg" className="text-center">
+          <p className="text-sm text-muted">You are not assigned to a mini-group yet. Groups are assigned at the start of each season.</p>
+        </SurfaceCard>
+      </div>
+    );
+  }
+
+  const leagueCfg = LEAGUE_CONFIG[group.league];
+  const myRank = vol ? group.members.find((m) => m.volunteerId === vol.id) : null;
+  const topCount = group.members.length >= 15 ? 5 : 3;
 
   return (
     <div className="max-w-3xl">
       <h1 className="text-2xl font-bold text-text-primary mb-2">Leaderboard</h1>
-      <p className="text-sm text-muted mb-6">
-        Season: {formatDate(mockCurrentSeason.startDate)} — {formatDate(mockCurrentSeason.endDate)}
-      </p>
+      {season && (
+        <p className="text-sm text-muted mb-6">
+          Season: {formatDate(season.startDate)} — {formatDate(season.endDate)}
+        </p>
+      )}
 
       {/* My Position */}
       {myRank && (
@@ -45,9 +107,9 @@ export default function LeaderboardPage() {
       <SurfaceCard padding="none" className="overflow-hidden">
         <div className="px-4 py-3 border-b border-border">
           <h2 className="text-base font-semibold text-text-primary">
-            {leagueCfg.label} League — Group {mockMiniGroup.id.split("-")[1]}
+            {leagueCfg.label} League — Group
           </h2>
-          <p className="text-xs text-muted">{mockMiniGroup.members.length} members · Top {topCount} promoted</p>
+          <p className="text-xs text-muted">{group.members.length} members · Top {topCount} promoted</p>
         </div>
         <table className="w-full text-sm">
           <thead>
@@ -58,8 +120,8 @@ export default function LeaderboardPage() {
             </tr>
           </thead>
           <tbody>
-            {mockMiniGroup.members.map((member) => {
-              const isMe = member.volunteerId === mockCurrentVolunteer.id;
+            {group.members.map((member) => {
+              const isMe = vol ? member.volunteerId === vol.id : false;
               const inPromoZone = member.rank <= topCount;
               return (
                 <tr

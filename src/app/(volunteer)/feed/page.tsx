@@ -1,14 +1,16 @@
 "use client";
 
-import { useState, useMemo } from "react";
-import { mockOpportunities, mockApplications, mockCurrentVolunteer } from "@/mocks";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { OpportunityCard } from "@/components/shared/OpportunityCard";
 import { FilterBar } from "@/components/ui/FilterBar";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { hasTimeOverlap } from "@/lib/utils";
 import { CATEGORIES, CITIES } from "@/lib/constants";
+import { listOpportunities, listMyApplications, getVolunteerProfile } from "@/lib/actions";
+import { mapOpportunity, mapApplication, mapVolunteerProfile } from "@/lib/mappers";
 import type { FilterConfig } from "@/components/ui/FilterBar";
+import type { Opportunity, Application } from "@/types";
 
 const filters: FilterConfig[] = [
   {
@@ -57,8 +59,13 @@ const filters: FilterConfig[] = [
 ];
 
 export default function FeedPage() {
+  const [opportunities, setOpportunities] = useState<Opportunity[]>([]);
+  const [myApplications, setMyApplications] = useState<Application[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [defaultCity, setDefaultCity] = useState("");
+
   const [filterValues, setFilterValues] = useState<Record<string, string>>({
-    city: mockCurrentVolunteer.city,
+    city: "",
     category: "",
     availableWithin: "",
     organization: "",
@@ -66,24 +73,46 @@ export default function FeedPage() {
     maxPoints: "",
   });
 
+  useEffect(() => {
+    async function load() {
+      const [oppResult, appResult, profileResult] = await Promise.all([
+        listOpportunities({ status: "open" }),
+        listMyApplications(),
+        getVolunteerProfile(),
+      ]);
+      if (oppResult.data) {
+        setOpportunities(oppResult.data.map(mapOpportunity));
+      }
+      if (appResult.data) {
+        setMyApplications(appResult.data.map(mapApplication));
+      }
+      if (profileResult.data) {
+        const vol = mapVolunteerProfile(profileResult.data);
+        setDefaultCity(vol.city);
+        setFilterValues((prev) => ({ ...prev, city: vol.city }));
+      }
+      setLoading(false);
+    }
+    load();
+  }, []);
+
   const handleFilterChange = (key: string, value: string) => {
     setFilterValues((prev) => ({ ...prev, [key]: value }));
   };
 
-  const handleClearFilters = () => {
+  const handleClearFilters = useCallback(() => {
     setFilterValues({
-      city: mockCurrentVolunteer.city,
+      city: defaultCity,
       category: "",
       availableWithin: "",
       organization: "",
       minPoints: "",
       maxPoints: "",
     });
-  };
+  }, [defaultCity]);
 
   const filteredOpportunities = useMemo(() => {
-    return mockOpportunities.filter((opp) => {
-      // Only show non-draft, non-cancelled
+    return opportunities.filter((opp) => {
       if (opp.status === "draft") return false;
 
       if (filterValues.city && opp.city !== filterValues.city) return false;
@@ -99,16 +128,29 @@ export default function FeedPage() {
 
       return true;
     });
-  }, [filterValues]);
+  }, [opportunities, filterValues]);
 
   const conflictMap = useMemo(() => {
     const map: Record<string, boolean> = {};
     for (const opp of filteredOpportunities) {
-      const conflict = hasTimeOverlap(mockApplications, opp);
+      const conflict = hasTimeOverlap(myApplications, opp);
       if (conflict) map[opp.id] = true;
     }
     return map;
-  }, [filteredOpportunities]);
+  }, [filteredOpportunities, myApplications]);
+
+  if (loading) {
+    return (
+      <div className="flex flex-col gap-6">
+        <Skeleton className="h-16 w-full" />
+        <div className="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-3">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <Skeleton key={i} className="h-48 w-full" />
+          ))}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div>

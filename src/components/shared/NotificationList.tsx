@@ -5,6 +5,8 @@ import { formatRelativeTime } from "@/lib/utils";
 
 interface NotificationListProps {
   notifications: Notification[];
+  onMarkRead?: (id: string) => void;
+  onMarkAllRead?: () => void;
 }
 
 const typeIcon: Record<string, React.ReactNode> = {
@@ -40,7 +42,7 @@ const typeIcon: Record<string, React.ReactNode> = {
   ),
 };
 
-function NotificationList({ notifications }: NotificationListProps) {
+function NotificationList({ notifications, onMarkRead, onMarkAllRead }: NotificationListProps) {
   if (notifications.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-12 text-center">
@@ -54,9 +56,14 @@ function NotificationList({ notifications }: NotificationListProps) {
 
   return (
     <div className="flex flex-col">
-      <button className="self-end text-xs text-accent hover:underline mb-3">
-        Mark all as read
-      </button>
+      {onMarkAllRead && (
+        <button
+          onClick={onMarkAllRead}
+          className="self-end text-xs text-accent hover:underline mb-3"
+        >
+          Mark all as read
+        </button>
+      )}
       <div className="flex flex-col gap-1">
         {notifications.map((notif) => (
           <div
@@ -66,6 +73,9 @@ function NotificationList({ notifications }: NotificationListProps) {
               hover:bg-surface-2
               ${!notif.read ? "border-l-2 border-accent bg-accent/5" : ""}
             `}
+            onClick={() => {
+              if (!notif.read && onMarkRead) onMarkRead(notif.id);
+            }}
           >
             <div className="mt-0.5 shrink-0">
               {typeIcon[notif.type] || typeIcon.status_change}

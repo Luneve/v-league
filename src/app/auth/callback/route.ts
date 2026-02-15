@@ -4,14 +4,33 @@ import { NextResponse } from "next/server";
 export async function GET(request: Request) {
   const { searchParams, origin } = new URL(request.url);
   const code = searchParams.get("code");
-  const next = searchParams.get("next") ?? "/feed";
 
   if (code) {
     const supabase = await createClient();
     const { error } = await supabase.auth.exchangeCodeForSession(code);
 
     if (!error) {
-      return NextResponse.redirect(`${origin}${next}`);
+      // Determine redirect based on user role
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (user) {
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("role")
+          .eq("id", user.id)
+          .single();
+
+        const role = profile?.role;
+        if (role === "organization") {
+          return NextResponse.redirect(`${origin}/org/dashboard`);
+        } else if (role === "admin") {
+          return NextResponse.redirect(`${origin}/admin/dashboard`);
+        }
+      }
+
+      return NextResponse.redirect(`${origin}/feed`);
     }
   }
 

@@ -1,30 +1,77 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
-import { mockOpportunities, mockApplications, mockVolunteers, mockCompletedHistory } from "@/mocks";
 import { SurfaceCard } from "@/components/ui/SurfaceCard";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Modal } from "@/components/ui/Modal";
 import { Drawer } from "@/components/ui/Drawer";
+import { Skeleton } from "@/components/ui/Skeleton";
 import { useToast } from "@/components/ui/Toast";
 import { APPLICATION_STATUS_BADGE, LEAGUE_CONFIG } from "@/lib/constants";
-import { formatDate, formatRelativeTime } from "@/lib/utils";
-import type { Application } from "@/types";
+import { formatRelativeTime } from "@/lib/utils";
+import {
+  getOpportunity,
+  listCandidates,
+  acceptCandidate,
+  waitlistCandidate,
+  rejectCandidate,
+  markCompletion,
+  getCompletedHistory,
+} from "@/lib/actions";
+import { mapOpportunity, mapCandidate, mapCompletedEntry } from "@/lib/mappers";
+import type { Opportunity, Application, CompletedEntry } from "@/types";
 
 export default function CandidatesPage() {
   const params = useParams();
   const router = useRouter();
   const { toast } = useToast();
 
-  const opportunity = mockOpportunities.find((o) => o.id === params.id);
-  const candidates = mockApplications.filter((a) => a.opportunityId === params.id);
+  const [opportunity, setOpportunity] = useState<Opportunity | null>(null);
+  const [candidates, setCandidates] = useState<Application[]>([]);
+  const [loading, setLoading] = useState(true);
 
   const [selectedApp, setSelectedApp] = useState<Application | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [noShowModal, setNoShowModal] = useState<Application | null>(null);
+  const [actionLoading, setActionLoading] = useState(false);
+  const [drawerHistory, setDrawerHistory] = useState<CompletedEntry[]>([]);
+
+  const fetchData = async () => {
+    const id = params.id as string;
+    const [oppResult, candResult] = await Promise.all([
+      getOpportunity(id),
+      listCandidates(id),
+    ]);
+    if (oppResult.data) {
+      setOpportunity(mapOpportunity(oppResult.data));
+    }
+    if (candResult.data) {
+      setCandidates(candResult.data.map(mapCandidate));
+    }
+    setLoading(false);
+  };
+
+  useEffect(() => {
+    fetchData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [params.id]);
+
+  if (loading) {
+    return (
+      <div className="flex flex-col gap-6">
+        <Skeleton className="h-8 w-64" />
+        <div className="flex gap-3">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <Skeleton key={i} className="h-12 w-32" />
+          ))}
+        </div>
+        <Skeleton className="h-64 w-full" />
+      </div>
+    );
+  }
 
   if (!opportunity) {
     return (
@@ -46,25 +93,60 @@ export default function CandidatesPage() {
 
   const eventPassed = new Date(`${opportunity.endDate}T${opportunity.endTime}`) < new Date();
 
-  const handleAction = (app: Application, action: string) => {
-    const actionLabels: Record<string, string> = {
-      accept: "Candidate accepted.",
-      waitlist: "Candidate waitlisted.",
-      reject: "Candidate rejected.",
-      complete: `${app.volunteerName || "Volunteer"} marked as completed. +${opportunity.pointsReward} points awarded.`,
-    };
-    toast(action === "reject" ? "warning" : "success", actionLabels[action] || "Action completed.");
+  const handleAction = async (app: Application, action: string) => {
+    setActionLoading(true);
+    let error: string | null = null;
+
+    if (action === "accept") {
+      ({ error } = await acceptCandidate(app.id));
+    } else if (action === "waitlist") {
+      ({ error } = await waitlistCandidate(app.id));
+    } else if (action === "reject") {
+      ({ error } = await rejectCandidate(app.id));
+    } else if (action === "complete") {
+      ({ error } = await markCompletion(app.id, "completed"));
+    }
+
+    setActionLoading(false);
+
+    if (error) {
+      toast("error", error);
+    } else {
+      const actionLabels: Record<string, string> = {
+        accept: "Candidate accepted.",
+        waitlist: "Candidate waitlisted.",
+        reject: "Candidate rejected.",
+        complete: `${app.volunteerName || "Volunteer"} marked as completed. +${opportunity.pointsReward} points awarded.`,
+      };
+      toast(action === "reject" ? "warning" : "success", actionLabels[action] || "Action completed.");
+      fetchData();
+    }
   };
 
-  const handleNoShow = () => {
+  const handleNoShow = async () => {
     if (!noShowModal) return;
-    toast("error", `${noShowModal.volunteerName || "Volunteer"} marked as no-show. Penalty and strike applied.`);
+    setActionLoading(true);
+    const { error } = await markCompletion(noShowModal.id, "no_show");
+    setActionLoading(false);
+    if (error) {
+      toast("error", error);
+    } else {
+      toast("error", `${noShowModal.volunteerName || "Volunteer"} marked as no-show. Penalty and strike applied.`);
+      fetchData();
+    }
     setNoShowModal(null);
   };
 
-  const openDrawer = (app: Application) => {
+  const openDrawer = async (app: Application) => {
     setSelectedApp(app);
     setDrawerOpen(true);
+    // Fetch volunteer's completed history
+    const { data } = await getCompletedHistory(app.volunteerId);
+    if (data) {
+      setDrawerHistory(data.map(mapCompletedEntry));
+    } else {
+      setDrawerHistory([]);
+    }
   };
 
   return (
@@ -72,7 +154,7 @@ export default function CandidatesPage() {
       {/* Header */}
       <div className="mb-6">
         <Link href="/org/opportunities" className="text-sm text-muted hover:text-accent mb-2 inline-block">
-          ← Back to opportunities
+          &larr; Back to opportunities
         </Link>
         <div className="flex items-center gap-3">
           <h1 className="text-2xl font-bold text-text-primary">
@@ -152,17 +234,17 @@ export default function CandidatesPage() {
                         <div className="flex items-center justify-end gap-2" onClick={(e) => e.stopPropagation()}>
                           {(app.status === "applied" || app.status === "waitlist") && (
                             <>
-                              <Button size="sm" variant="primary" onClick={() => handleAction(app, "accept")}>Accept</Button>
+                              <Button size="sm" variant="primary" disabled={actionLoading} onClick={() => handleAction(app, "accept")}>Accept</Button>
                               {app.status === "applied" && (
-                                <Button size="sm" variant="outline" onClick={() => handleAction(app, "waitlist")}>Waitlist</Button>
+                                <Button size="sm" variant="outline" disabled={actionLoading} onClick={() => handleAction(app, "waitlist")}>Waitlist</Button>
                               )}
-                              <Button size="sm" variant="ghost" className="text-danger" onClick={() => handleAction(app, "reject")}>Reject</Button>
+                              <Button size="sm" variant="ghost" className="text-danger" disabled={actionLoading} onClick={() => handleAction(app, "reject")}>Reject</Button>
                             </>
                           )}
                           {app.status === "accepted" && eventPassed && (
                             <>
-                              <Button size="sm" variant="primary" onClick={() => handleAction(app, "complete")}>Complete</Button>
-                              <Button size="sm" variant="danger" onClick={() => setNoShowModal(app)}>No-Show</Button>
+                              <Button size="sm" variant="primary" disabled={actionLoading} onClick={() => handleAction(app, "complete")}>Complete</Button>
+                              <Button size="sm" variant="danger" disabled={actionLoading} onClick={() => setNoShowModal(app)}>No-Show</Button>
                             </>
                           )}
                         </div>
@@ -184,14 +266,14 @@ export default function CandidatesPage() {
         footer={
           selectedApp && (selectedApp.status === "applied" || selectedApp.status === "waitlist") ? (
             <>
-              <Button variant="primary" onClick={() => { handleAction(selectedApp, "accept"); setDrawerOpen(false); }}>Accept</Button>
-              <Button variant="outline" onClick={() => { handleAction(selectedApp, "waitlist"); setDrawerOpen(false); }}>Waitlist</Button>
-              <Button variant="danger" onClick={() => { handleAction(selectedApp, "reject"); setDrawerOpen(false); }}>Reject</Button>
+              <Button variant="primary" disabled={actionLoading} onClick={() => { handleAction(selectedApp, "accept"); setDrawerOpen(false); }}>Accept</Button>
+              <Button variant="outline" disabled={actionLoading} onClick={() => { handleAction(selectedApp, "waitlist"); setDrawerOpen(false); }}>Waitlist</Button>
+              <Button variant="danger" disabled={actionLoading} onClick={() => { handleAction(selectedApp, "reject"); setDrawerOpen(false); }}>Reject</Button>
             </>
           ) : selectedApp && selectedApp.status === "accepted" && eventPassed ? (
             <>
-              <Button variant="primary" onClick={() => { handleAction(selectedApp, "complete"); setDrawerOpen(false); }}>Mark Completed</Button>
-              <Button variant="danger" onClick={() => { setNoShowModal(selectedApp); setDrawerOpen(false); }}>Mark No-Show</Button>
+              <Button variant="primary" disabled={actionLoading} onClick={() => { handleAction(selectedApp, "complete"); setDrawerOpen(false); }}>Mark Completed</Button>
+              <Button variant="danger" disabled={actionLoading} onClick={() => { setNoShowModal(selectedApp); setDrawerOpen(false); }}>Mark No-Show</Button>
             </>
           ) : undefined
         }
@@ -232,9 +314,9 @@ export default function CandidatesPage() {
 
             <div className="border-t border-border pt-4">
               <h4 className="text-sm font-semibold text-text-primary mb-2">Recent Completions</h4>
-              {mockCompletedHistory.length > 0 ? (
+              {drawerHistory.length > 0 ? (
                 <div className="flex flex-col gap-2">
-                  {mockCompletedHistory.slice(0, 5).map((entry) => (
+                  {drawerHistory.slice(0, 5).map((entry) => (
                     <div key={entry.id} className="flex items-center justify-between text-xs">
                       <span className="text-text-primary">{entry.opportunityTitle}</span>
                       <span className="text-muted">{entry.hours}h · +{entry.pointsEarned}pts</span>
@@ -258,7 +340,7 @@ export default function CandidatesPage() {
         footer={
           <>
             <Button variant="ghost" onClick={() => setNoShowModal(null)}>Cancel</Button>
-            <Button variant="danger" onClick={handleNoShow}>Confirm No-Show</Button>
+            <Button variant="danger" loading={actionLoading} onClick={handleNoShow}>Confirm No-Show</Button>
           </>
         }
       >

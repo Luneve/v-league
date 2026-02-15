@@ -1,18 +1,20 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
-import { mockApplications } from "@/mocks";
 import { Badge } from "@/components/ui/Badge";
 import { SurfaceCard } from "@/components/ui/SurfaceCard";
 import { Button } from "@/components/ui/Button";
 import { Tabs } from "@/components/ui/Tabs";
 import { Modal } from "@/components/ui/Modal";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { Skeleton } from "@/components/ui/Skeleton";
 import { useToast } from "@/components/ui/Toast";
 import { APPLICATION_STATUS_BADGE } from "@/lib/constants";
 import { formatDate, getWithdrawalPenalty } from "@/lib/utils";
-import type { ApplicationStatus } from "@/types";
+import { listMyApplications, withdrawApplication } from "@/lib/actions";
+import { mapApplication } from "@/lib/mappers";
+import type { Application, ApplicationStatus } from "@/types";
 
 const tabs = [
   { id: "all", label: "All" },
@@ -23,20 +25,33 @@ const tabs = [
   { id: "withdrawn", label: "Withdrawn" },
 ];
 
-// Filter only the current volunteer's applications
-const myApps = mockApplications.filter((a) => a.volunteerId === "vol-1");
-
 export default function ApplicationsPage() {
   const { toast } = useToast();
+  const [applications, setApplications] = useState<Application[]>([]);
+  const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("all");
   const [withdrawModal, setWithdrawModal] = useState<string | null>(null);
+  const [withdrawing, setWithdrawing] = useState(false);
 
-  const filtered =
-    activeTab === "all"
-      ? myApps
-      : myApps.filter((a) => a.status === activeTab);
+  const fetchApplications = async () => {
+    const { data } = await listMyApplications();
+    if (data) {
+      setApplications(data.map(mapApplication));
+    }
+    setLoading(false);
+  };
 
-  const withdrawApp = myApps.find((a) => a.id === withdrawModal);
+  useEffect(() => {
+    fetchApplications();
+  }, []);
+
+  const filtered = useMemo(() => {
+    return activeTab === "all"
+      ? applications
+      : applications.filter((a) => a.status === activeTab);
+  }, [applications, activeTab]);
+
+  const withdrawApp = applications.find((a) => a.id === withdrawModal);
   const withdrawPenalty = withdrawApp
     ? getWithdrawalPenalty(withdrawApp.opportunity.startDate, withdrawApp.opportunity.startTime)
     : null;
@@ -44,16 +59,37 @@ export default function ApplicationsPage() {
   const canWithdraw = (status: ApplicationStatus) =>
     status === "applied" || status === "waitlist" || status === "accepted";
 
-  const handleWithdraw = () => {
+  const handleWithdraw = async () => {
     if (!withdrawApp) return;
-    toast(
-      withdrawPenalty && withdrawPenalty.penalty > 0 ? "warning" : "success",
-      withdrawPenalty && withdrawPenalty.penalty > 0
-        ? `Application withdrawn. ${withdrawPenalty.penalty} points deducted.`
-        : "Application withdrawn."
-    );
+    setWithdrawing(true);
+    const { error } = await withdrawApplication(withdrawApp.id);
+    setWithdrawing(false);
+    if (error) {
+      toast("error", error);
+    } else {
+      toast(
+        withdrawPenalty && withdrawPenalty.penalty > 0 ? "warning" : "success",
+        withdrawPenalty && withdrawPenalty.penalty > 0
+          ? `Application withdrawn. ${withdrawPenalty.penalty} points deducted.`
+          : "Application withdrawn."
+      );
+      // Refresh list
+      fetchApplications();
+    }
     setWithdrawModal(null);
   };
+
+  if (loading) {
+    return (
+      <div className="flex flex-col gap-6">
+        <Skeleton className="h-8 w-48" />
+        <Skeleton className="h-12 w-full" />
+        {Array.from({ length: 3 }).map((_, i) => (
+          <Skeleton key={i} className="h-20 w-full" />
+        ))}
+      </div>
+    );
+  }
 
   return (
     <div>
@@ -135,7 +171,7 @@ export default function ApplicationsPage() {
         footer={
           <>
             <Button variant="ghost" onClick={() => setWithdrawModal(null)}>Cancel</Button>
-            <Button variant="danger" onClick={handleWithdraw}>Confirm Withdrawal</Button>
+            <Button variant="danger" loading={withdrawing} onClick={handleWithdraw}>Confirm Withdrawal</Button>
           </>
         }
       >

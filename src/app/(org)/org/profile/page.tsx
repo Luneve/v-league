@@ -1,44 +1,99 @@
 "use client";
 
-import { useState } from "react";
-import { mockCurrentOrg } from "@/mocks";
+import { useState, useEffect } from "react";
 import { SurfaceCard } from "@/components/ui/SurfaceCard";
 import { Input } from "@/components/ui/Input";
 import { Textarea } from "@/components/ui/Textarea";
 import { Select } from "@/components/ui/Select";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
+import { Skeleton } from "@/components/ui/Skeleton";
 import { useToast } from "@/components/ui/Toast";
 import { CITIES } from "@/lib/constants";
+import { getOrganizationProfile, updateOrganizationProfile } from "@/lib/actions";
+import { mapOrganizationProfile } from "@/lib/mappers";
+import type { OrganizationProfile } from "@/types";
 
 export default function OrgProfilePage() {
   const { toast } = useToast();
-  const org = mockCurrentOrg;
+  const [org, setOrg] = useState<OrganizationProfile | null>(null);
+  const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
   const [form, setForm] = useState({
-    name: org.name,
-    about: org.about || "",
-    city: org.city,
-    instagram: org.links.instagram || "",
-    website: org.links.website || "",
-    tiktok: org.links.tiktok || "",
-    other: org.links.other || "",
-    telegram: org.contacts.telegram || "",
-    phone: org.contacts.phone || "",
+    name: "",
+    about: "",
+    city: "",
+    instagram: "",
+    website: "",
+    tiktok: "",
+    other: "",
+    telegram: "",
+    phone: "",
   });
+
+  useEffect(() => {
+    async function load() {
+      const { data } = await getOrganizationProfile();
+      if (data) {
+        const mapped = mapOrganizationProfile(data);
+        setOrg(mapped);
+        setForm({
+          name: mapped.name,
+          about: mapped.about || "",
+          city: mapped.city,
+          instagram: mapped.links.instagram || "",
+          website: mapped.links.website || "",
+          tiktok: mapped.links.tiktok || "",
+          other: mapped.links.other || "",
+          telegram: mapped.contacts.telegram || "",
+          phone: mapped.contacts.phone || "",
+        });
+      }
+      setLoading(false);
+    }
+    load();
+  }, []);
 
   const updateField = (key: string, value: string) => {
     setForm((prev) => ({ ...prev, [key]: value }));
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     setSaving(true);
-    setTimeout(() => {
-      setSaving(false);
+    const { error } = await updateOrganizationProfile({
+      name: form.name,
+      about: form.about || null,
+      city: form.city,
+      links: {
+        instagram: form.instagram || undefined,
+        website: form.website || undefined,
+        tiktok: form.tiktok || undefined,
+        other: form.other || undefined,
+      },
+      contacts: {
+        telegram: form.telegram || undefined,
+        phone: form.phone || undefined,
+      },
+    });
+    setSaving(false);
+    if (error) {
+      toast("error", error);
+    } else {
       toast("success", "Organization profile updated!");
-    }, 800);
+      const { data } = await getOrganizationProfile();
+      if (data) setOrg(mapOrganizationProfile(data));
+    }
   };
+
+  if (loading || !org) {
+    return (
+      <div className="flex flex-col gap-6 max-w-2xl">
+        <Skeleton className="h-8 w-64" />
+        <Skeleton className="h-64 w-full" />
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-2xl">

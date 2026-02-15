@@ -1,31 +1,63 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import Link from "next/link";
-import { mockOpportunities, mockApplications, mockCurrentOrg } from "@/mocks";
 import { SurfaceCard } from "@/components/ui/SurfaceCard";
 import { Button } from "@/components/ui/Button";
+import { Skeleton } from "@/components/ui/Skeleton";
 import { formatRelativeTime } from "@/lib/utils";
-
-const orgOpps = mockOpportunities.filter((o) => o.organizationId === mockCurrentOrg.id);
-const orgApps = mockApplications.filter((a) =>
-  orgOpps.some((o) => o.id === a.opportunityId)
-);
-
-const stats = [
-  { label: "Total Opportunities", value: orgOpps.length },
-  { label: "Open", value: orgOpps.filter((o) => o.status === "open").length },
-  { label: "Total Applicants", value: orgApps.length },
-  { label: "Completed", value: orgOpps.filter((o) => o.status === "completed").length },
-];
-
-const recentActivity = [
-  { text: "New application from Diana Kim for Spring Park Cleanup 2026", time: "2026-02-21T14:20:00Z" },
-  { text: "Alex Nazarov accepted for Spring Park Cleanup 2026", time: "2026-02-22T14:00:00Z" },
-  { text: "Arman Tulegenov waitlisted for Spring Park Cleanup 2026", time: "2026-02-23T10:00:00Z" },
-  { text: "Madina Omarova rejected for Spring Park Cleanup 2026", time: "2026-02-24T09:00:00Z" },
-];
+import { listOpportunities, listNotifications } from "@/lib/actions";
+import { useProfile } from "@/hooks/useProfile";
+import { mapOpportunity, mapNotification } from "@/lib/mappers";
+import type { Opportunity, OrganizationProfile, Notification } from "@/types";
 
 export default function OrgDashboardPage() {
+  const { profile } = useProfile();
+  const [opportunities, setOpportunities] = useState<Opportunity[]>([]);
+  const [recentNotifs, setRecentNotifs] = useState<Notification[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const org = profile as OrganizationProfile | null;
+
+  useEffect(() => {
+    async function load() {
+      if (!org) return;
+      const [oppResult, notifResult] = await Promise.all([
+        listOpportunities({ organizationId: org.id }),
+        listNotifications({ pageSize: 5 }),
+      ]);
+      if (oppResult.data) {
+        setOpportunities(oppResult.data.map(mapOpportunity));
+      }
+      if (notifResult.data) {
+        setRecentNotifs(notifResult.data.map(mapNotification));
+      }
+      setLoading(false);
+    }
+    load();
+  }, [org]);
+
+  if (loading) {
+    return (
+      <div className="flex flex-col gap-6">
+        <Skeleton className="h-8 w-48" />
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <Skeleton key={i} className="h-24 w-full" />
+          ))}
+        </div>
+        <Skeleton className="h-48 w-full" />
+      </div>
+    );
+  }
+
+  const stats = [
+    { label: "Total Opportunities", value: opportunities.length },
+    { label: "Open", value: opportunities.filter((o) => o.status === "open").length },
+    { label: "Total Applicants", value: opportunities.reduce((acc, o) => acc + o.currentApplicants, 0) },
+    { label: "Completed", value: opportunities.filter((o) => o.status === "completed").length },
+  ];
+
   return (
     <div>
       <div className="flex items-center justify-between mb-6">
@@ -45,20 +77,24 @@ export default function OrgDashboardPage() {
         ))}
       </div>
 
-      {/* Recent Activity */}
+      {/* Recent Activity (from notifications) */}
       <SurfaceCard padding="md">
         <h2 className="text-lg font-semibold text-text-primary mb-4">Recent Activity</h2>
-        <div className="flex flex-col gap-3">
-          {recentActivity.map((item, idx) => (
-            <div key={idx} className="flex items-start gap-3 rounded-xl bg-surface-2 p-3">
-              <div className="mt-1 h-2 w-2 shrink-0 rounded-full bg-accent" />
-              <div className="flex-1">
-                <p className="text-sm text-text-primary">{item.text}</p>
-                <p className="text-xs text-muted mt-0.5">{formatRelativeTime(item.time)}</p>
+        {recentNotifs.length === 0 ? (
+          <p className="text-sm text-muted">No recent activity.</p>
+        ) : (
+          <div className="flex flex-col gap-3">
+            {recentNotifs.map((notif) => (
+              <div key={notif.id} className="flex items-start gap-3 rounded-xl bg-surface-2 p-3">
+                <div className="mt-1 h-2 w-2 shrink-0 rounded-full bg-accent" />
+                <div className="flex-1">
+                  <p className="text-sm text-text-primary">{notif.title}: {notif.body}</p>
+                  <p className="text-xs text-muted mt-0.5">{formatRelativeTime(notif.createdAt)}</p>
+                </div>
               </div>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        )}
       </SurfaceCard>
     </div>
   );

@@ -1,19 +1,60 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
-import { mockApplications } from "@/mocks";
 import { Badge } from "@/components/ui/Badge";
 import { SurfaceCard } from "@/components/ui/SurfaceCard";
 import { Button } from "@/components/ui/Button";
+import { Skeleton } from "@/components/ui/Skeleton";
 import { APPLICATION_STATUS_BADGE } from "@/lib/constants";
 import { formatDate, formatRelativeTime } from "@/lib/utils";
+import { listMyApplications, getApplicationStatusHistory } from "@/lib/actions";
+import { mapApplication } from "@/lib/mappers";
+import type { Application, ApplicationStatus } from "@/types";
 
 export default function ApplicationDetailPage() {
   const params = useParams();
   const router = useRouter();
+  const [application, setApplication] = useState<Application | null>(null);
+  const [loading, setLoading] = useState(true);
 
-  const application = mockApplications.find((a) => a.id === params.id);
+  useEffect(() => {
+    async function load() {
+      const id = params.id as string;
+      const [appsResult, historyResult] = await Promise.all([
+        listMyApplications(),
+        getApplicationStatusHistory(id),
+      ]);
+
+      if (appsResult.data) {
+        const apps = appsResult.data.map(mapApplication);
+        const found = apps.find((a) => a.id === id);
+        if (found) {
+          // Attach real status history
+          if (historyResult.data) {
+            found.statusHistory = historyResult.data.map((h: any) => ({
+              status: h.status as ApplicationStatus,
+              at: h.changed_at,
+            }));
+          }
+          setApplication(found);
+        }
+      }
+      setLoading(false);
+    }
+    load();
+  }, [params.id]);
+
+  if (loading) {
+    return (
+      <div className="flex flex-col gap-6 max-w-3xl">
+        <Skeleton className="h-8 w-48" />
+        <Skeleton className="h-16 w-full" />
+        <Skeleton className="h-32 w-full" />
+      </div>
+    );
+  }
 
   if (!application) {
     return (
@@ -100,27 +141,31 @@ export default function ApplicationDetailPage() {
       {/* Status timeline */}
       <SurfaceCard padding="md">
         <h3 className="text-sm font-semibold text-text-primary mb-4">Status Timeline</h3>
-        <div className="flex flex-col gap-3">
-          {application.statusHistory.map((entry, idx) => {
-            const entryCfg = APPLICATION_STATUS_BADGE[entry.status];
-            return (
-              <div key={idx} className="flex items-center gap-3">
-                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-surface-2">
-                  <div className={`h-2.5 w-2.5 rounded-full ${
-                    entry.status === "completed" || entry.status === "accepted" ? "bg-success" :
-                    entry.status === "rejected" || entry.status === "no_show" ? "bg-danger" :
-                    entry.status === "waitlist" ? "bg-warning" :
-                    "bg-accent"
-                  }`} />
+        {application.statusHistory.length === 0 ? (
+          <p className="text-sm text-muted">No status changes recorded yet.</p>
+        ) : (
+          <div className="flex flex-col gap-3">
+            {application.statusHistory.map((entry, idx) => {
+              const entryCfg = APPLICATION_STATUS_BADGE[entry.status];
+              return (
+                <div key={idx} className="flex items-center gap-3">
+                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-surface-2">
+                    <div className={`h-2.5 w-2.5 rounded-full ${
+                      entry.status === "completed" || entry.status === "accepted" ? "bg-success" :
+                      entry.status === "rejected" || entry.status === "no_show" ? "bg-danger" :
+                      entry.status === "waitlist" ? "bg-warning" :
+                      "bg-accent"
+                    }`} />
+                  </div>
+                  <div className="flex-1">
+                    <p className="text-sm font-medium text-text-primary">{entryCfg.label}</p>
+                    <p className="text-xs text-muted">{formatRelativeTime(entry.at)}</p>
+                  </div>
                 </div>
-                <div className="flex-1">
-                  <p className="text-sm font-medium text-text-primary">{entryCfg.label}</p>
-                  <p className="text-xs text-muted">{formatRelativeTime(entry.at)}</p>
-                </div>
-              </div>
-            );
-          })}
-        </div>
+              );
+            })}
+          </div>
+        )}
       </SurfaceCard>
     </div>
   );

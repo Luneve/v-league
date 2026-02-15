@@ -1,43 +1,97 @@
 "use client";
 
-import { useState } from "react";
-import { mockCurrentVolunteer, mockCompletedHistory } from "@/mocks";
+import { useState, useEffect } from "react";
 import { SurfaceCard } from "@/components/ui/SurfaceCard";
 import { Input } from "@/components/ui/Input";
 import { Textarea } from "@/components/ui/Textarea";
 import { Select } from "@/components/ui/Select";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
+import { Skeleton } from "@/components/ui/Skeleton";
 import { useToast } from "@/components/ui/Toast";
 import { LEAGUE_CONFIG, CITIES } from "@/lib/constants";
 import { getInitials, formatDate } from "@/lib/utils";
+import { getVolunteerProfile, updateVolunteerProfile, getCompletedHistory } from "@/lib/actions";
+import { mapVolunteerProfile, mapCompletedEntry } from "@/lib/mappers";
+import type { VolunteerProfile, CompletedEntry } from "@/types";
 
 export default function ProfileEditPage() {
   const { toast } = useToast();
-  const vol = mockCurrentVolunteer;
-  const leagueConfig = LEAGUE_CONFIG[vol.league];
+  const [vol, setVol] = useState<VolunteerProfile | null>(null);
+  const [history, setHistory] = useState<CompletedEntry[]>([]);
+  const [loading, setLoading] = useState(true);
 
   const [form, setForm] = useState({
-    firstName: vol.firstName,
-    lastName: vol.lastName,
-    nickname: vol.nickname || "",
-    city: vol.city,
-    dateOfBirth: vol.dateOfBirth,
-    bio: vol.bio || "",
+    firstName: "",
+    lastName: "",
+    nickname: "",
+    city: "",
+    dateOfBirth: "",
+    bio: "",
   });
   const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    async function load() {
+      const [profileResult, historyResult] = await Promise.all([
+        getVolunteerProfile(),
+        getCompletedHistory(),
+      ]);
+      if (profileResult.data) {
+        const mapped = mapVolunteerProfile(profileResult.data);
+        setVol(mapped);
+        setForm({
+          firstName: mapped.firstName,
+          lastName: mapped.lastName,
+          nickname: mapped.nickname || "",
+          city: mapped.city,
+          dateOfBirth: mapped.dateOfBirth,
+          bio: mapped.bio || "",
+        });
+      }
+      if (historyResult.data) {
+        setHistory(historyResult.data.map(mapCompletedEntry));
+      }
+      setLoading(false);
+    }
+    load();
+  }, []);
 
   const updateField = (key: string, value: string) => {
     setForm((prev) => ({ ...prev, [key]: value }));
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     setSaving(true);
-    setTimeout(() => {
-      setSaving(false);
+    const { error } = await updateVolunteerProfile({
+      first_name: form.firstName,
+      last_name: form.lastName,
+      nickname: form.nickname || null,
+      city: form.city,
+      date_of_birth: form.dateOfBirth,
+      bio: form.bio || null,
+    });
+    setSaving(false);
+    if (error) {
+      toast("error", error);
+    } else {
       toast("success", "Profile updated successfully!");
-    }, 800);
+      // Refresh profile data
+      const { data } = await getVolunteerProfile();
+      if (data) setVol(mapVolunteerProfile(data));
+    }
   };
+
+  if (loading || !vol) {
+    return (
+      <div className="flex flex-col gap-6">
+        <Skeleton className="h-8 w-48" />
+        <Skeleton className="h-64 w-full" />
+      </div>
+    );
+  }
+
+  const leagueConfig = LEAGUE_CONFIG[vol.league];
 
   return (
     <div>
@@ -112,7 +166,7 @@ export default function ProfileEditPage() {
           </SurfaceCard>
         </div>
 
-        {/* Stats sidebar — same height as profile edit on desktop */}
+        {/* Stats sidebar */}
         <div className="lg:w-80">
           <SurfaceCard spotlight padding="md" className="h-full">
             <h2 className="text-lg font-semibold text-text-primary mb-4">Stats</h2>
@@ -134,14 +188,14 @@ export default function ProfileEditPage() {
         </div>
       </div>
 
-      {/* Completed History — full width below */}
+      {/* Completed History */}
       <SurfaceCard padding="md">
         <h2 className="text-lg font-semibold text-text-primary mb-4">Completed History</h2>
-        {mockCompletedHistory.length === 0 ? (
+        {history.length === 0 ? (
           <p className="text-sm text-muted">No completed volunteer activities yet.</p>
         ) : (
           <div className="flex flex-col gap-3">
-            {mockCompletedHistory.map((entry) => (
+            {history.map((entry) => (
               <div
                 key={entry.id}
                 className="flex items-center justify-between rounded-xl bg-surface-2 p-3"

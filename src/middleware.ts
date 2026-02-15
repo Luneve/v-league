@@ -1,6 +1,17 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
+// Volunteer route prefixes (route group: (volunteer))
+const VOLUNTEER_ROUTES = ["/feed", "/profile", "/opportunity", "/leaderboard", "/notifications", "/applications"];
+// Org route prefixes (route group: (org))
+const ORG_ROUTES = ["/org"];
+// Admin route prefixes (route group: (admin))
+const ADMIN_ROUTES = ["/admin"];
+
+function matchesAny(pathname: string, prefixes: string[]): boolean {
+  return prefixes.some((p) => pathname === p || pathname.startsWith(`${p}/`));
+}
+
 export async function middleware(request: NextRequest) {
   let supabaseResponse = NextResponse.next({
     request,
@@ -34,20 +45,64 @@ export async function middleware(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser();
 
-  // Protect routes: redirect unauthenticated users to login
-  const isAuthPage = request.nextUrl.pathname.startsWith("/auth");
+  const pathname = request.nextUrl.pathname;
+  const isAuthPage = pathname.startsWith("/auth");
 
+  // Protect routes: redirect unauthenticated users to login
   if (!user && !isAuthPage) {
     const url = request.nextUrl.clone();
     url.pathname = "/auth/login";
     return NextResponse.redirect(url);
   }
 
-  // If authenticated user visits auth pages, redirect to feed
+  // If authenticated user visits auth pages, redirect to appropriate home
   if (user && isAuthPage) {
+    // Fetch role for redirect
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("role")
+      .eq("id", user.id)
+      .single();
+
     const url = request.nextUrl.clone();
-    url.pathname = "/feed";
+    const role = profile?.role;
+    if (role === "organization") {
+      url.pathname = "/org/dashboard";
+    } else if (role === "admin") {
+      url.pathname = "/admin/dashboard";
+    } else {
+      url.pathname = "/feed";
+    }
     return NextResponse.redirect(url);
+  }
+
+  // Role-based route protection
+  if (user && !isAuthPage) {
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("role")
+      .eq("id", user.id)
+      .single();
+
+    const role = profile?.role;
+    const url = request.nextUrl.clone();
+
+    if (role === "volunteer") {
+      if (matchesAny(pathname, ORG_ROUTES) || matchesAny(pathname, ADMIN_ROUTES)) {
+        url.pathname = "/feed";
+        return NextResponse.redirect(url);
+      }
+    } else if (role === "organization") {
+      if (matchesAny(pathname, VOLUNTEER_ROUTES) || matchesAny(pathname, ADMIN_ROUTES)) {
+        url.pathname = "/org/dashboard";
+        return NextResponse.redirect(url);
+      }
+    } else if (role === "admin") {
+      if (matchesAny(pathname, VOLUNTEER_ROUTES) || matchesAny(pathname, ORG_ROUTES)) {
+        url.pathname = "/admin/dashboard";
+        return NextResponse.redirect(url);
+      }
+    }
   }
 
   return supabaseResponse;

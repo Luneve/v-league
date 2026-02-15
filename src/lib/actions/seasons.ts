@@ -1,6 +1,7 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
+import type { Database } from "@/types/supabase";
 
 export async function getCurrentSeason() {
   const supabase = await createClient();
@@ -100,7 +101,7 @@ export async function getLeaderboard(filters: {
     .select("*")
     .eq("season_id", seasonId);
 
-  if (filters.league) groupQuery = groupQuery.eq("league", filters.league);
+  if (filters.league) groupQuery = groupQuery.eq("league", filters.league as Database["public"]["Enums"]["league"]);
 
   const { data: groups, error } = await groupQuery;
 

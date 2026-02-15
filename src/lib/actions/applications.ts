@@ -12,7 +12,7 @@ export async function applyToOpportunity(opportunityId: string, message?: string
 
   const { data, error } = await supabase.rpc("fn_apply_to_opportunity", {
     p_opportunity_id: opportunityId,
-    p_message: message ?? null,
+    p_message: message ?? undefined,
   });
 
   return { data, error: error?.message ?? null };

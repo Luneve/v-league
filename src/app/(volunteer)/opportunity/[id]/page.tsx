@@ -1,17 +1,25 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
-import { mockOpportunities, mockApplications, mockCurrentVolunteer } from "@/mocks";
 import { Badge } from "@/components/ui/Badge";
 import { SurfaceCard } from "@/components/ui/SurfaceCard";
 import { Button } from "@/components/ui/Button";
 import { Modal } from "@/components/ui/Modal";
 import { Textarea } from "@/components/ui/Textarea";
+import { Skeleton } from "@/components/ui/Skeleton";
 import { useToast } from "@/components/ui/Toast";
 import { OPPORTUNITY_STATUS_BADGE } from "@/lib/constants";
 import { formatDate, daysUntil, hasTimeOverlap, getInitials } from "@/lib/utils";
+import {
+  getOpportunity,
+  listMyApplications,
+  getVolunteerProfile,
+  applyToOpportunity,
+} from "@/lib/actions";
+import { mapOpportunity, mapApplication, mapVolunteerProfile } from "@/lib/mappers";
+import type { Opportunity, Application, VolunteerProfile } from "@/types";
 
 export default function OpportunityDetailPage() {
   const params = useParams();
@@ -21,24 +29,62 @@ export default function OpportunityDetailPage() {
   const [message, setMessage] = useState("");
   const [applying, setApplying] = useState(false);
 
-  const opportunity = mockOpportunities.find((o) => o.id === params.id);
+  const [opportunity, setOpportunity] = useState<Opportunity | null>(null);
+  const [myApplications, setMyApplications] = useState<Application[]>([]);
+  const [vol, setVol] = useState<VolunteerProfile | null>(null);
+  const [loading, setLoading] = useState(true);
 
-  const existingApplication = mockApplications.find(
-    (a) => a.opportunityId === params.id && a.volunteerId === mockCurrentVolunteer.id
-  );
+  useEffect(() => {
+    async function load() {
+      const id = params.id as string;
+      const [oppResult, appResult, profileResult] = await Promise.all([
+        getOpportunity(id),
+        listMyApplications(),
+        getVolunteerProfile(),
+      ]);
+      if (oppResult.data) {
+        setOpportunity(mapOpportunity(oppResult.data));
+      }
+      if (appResult.data) {
+        setMyApplications(appResult.data.map(mapApplication));
+      }
+      if (profileResult.data) {
+        setVol(mapVolunteerProfile(profileResult.data));
+      }
+      setLoading(false);
+    }
+    load();
+  }, [params.id]);
+
+  const existingApplication = useMemo(() => {
+    if (!opportunity || !vol) return null;
+    return myApplications.find(
+      (a) => a.opportunityId === opportunity.id
+    ) ?? null;
+  }, [opportunity, vol, myApplications]);
 
   const conflict = useMemo(() => {
     if (!opportunity) return null;
-    const otherApps = mockApplications.filter((a) => a.opportunityId !== opportunity.id);
+    const otherApps = myApplications.filter((a) => a.opportunityId !== opportunity.id);
     return hasTimeOverlap(otherApps, opportunity);
-  }, [opportunity]);
+  }, [opportunity, myApplications]);
+
+  if (loading) {
+    return (
+      <div className="flex flex-col gap-6">
+        <Skeleton className="h-8 w-64" />
+        <Skeleton className="h-48 w-full" />
+        <Skeleton className="h-32 w-full" />
+      </div>
+    );
+  }
 
   if (!opportunity) {
     return (
       <div className="flex items-center justify-center min-h-[50vh]">
         <div className="text-center">
           <h2 className="text-xl font-semibold text-text-primary mb-2">Opportunity not found</h2>
-          <p className="text-sm text-muted mb-4">The opportunity you're looking for doesn't exist or has been removed.</p>
+          <p className="text-sm text-muted mb-4">The opportunity you&apos;re looking for doesn&apos;t exist or has been removed.</p>
           <Button variant="outline" onClick={() => router.push("/feed")}>
             Back to Feed
           </Button>
@@ -50,23 +96,27 @@ export default function OpportunityDetailPage() {
   const statusConfig = OPPORTUNITY_STATUS_BADGE[opportunity.status];
   const deadlineDays = daysUntil(opportunity.applyDeadline);
   const spotsLeft = opportunity.capacity - opportunity.currentApplicants;
-  const vol = mockCurrentVolunteer;
+
+  const volunteerAge = vol
+    ? Math.floor(
+        (new Date().getTime() - new Date(vol.dateOfBirth).getTime()) / (365.25 * 24 * 3600000)
+      )
+    : 0;
+  const meetsAge = !opportunity.ageRestriction || volunteerAge >= opportunity.ageRestriction;
   const canApply = opportunity.status === "open" && !existingApplication && !conflict && deadlineDays > 0 && spotsLeft > 0;
 
-  // Check age restriction
-  const volunteerAge = Math.floor(
-    (new Date().getTime() - new Date(vol.dateOfBirth).getTime()) / (365.25 * 24 * 3600000)
-  );
-  const meetsAge = !opportunity.ageRestriction || volunteerAge >= opportunity.ageRestriction;
-
-  const handleApply = () => {
+  const handleApply = async () => {
     setApplying(true);
-    setTimeout(() => {
-      setApplying(false);
+    const { error } = await applyToOpportunity(opportunity.id, message || undefined);
+    setApplying(false);
+    if (error) {
+      setApplyModalOpen(false);
+      toast("error", error);
+    } else {
       setApplyModalOpen(false);
       toast("success", "Application submitted!");
       router.push("/applications");
-    }, 1000);
+    }
   };
 
   return (
@@ -86,9 +136,9 @@ export default function OpportunityDetailPage() {
         </div>
         <h1 className="text-2xl font-bold text-text-primary mb-2">{opportunity.title}</h1>
         <div className="flex items-center gap-2 text-sm text-muted">
-          <Link href={`/org/profile/${opportunity.organizationId}`} className="text-accent hover:underline">
+          <span className="text-accent">
             {opportunity.organizationName}
-          </Link>
+          </span>
           {opportunity.orgVerified && (
             <Badge variant="success" size="sm">
               <svg className="h-3 w-3" fill="currentColor" viewBox="0 0 20 20">
@@ -114,7 +164,6 @@ export default function OpportunityDetailPage() {
       <div className="flex flex-col lg:flex-row lg:items-stretch gap-6">
         {/* Main content */}
         <div className="flex-1 lg:max-w-3xl flex flex-col gap-6">
-          {/* Description */}
           <SurfaceCard padding="md">
             <h2 className="text-lg font-semibold text-text-primary mb-3">Description</h2>
             <p className="text-sm text-text-primary leading-relaxed whitespace-pre-wrap">
@@ -122,7 +171,6 @@ export default function OpportunityDetailPage() {
             </p>
           </SurfaceCard>
 
-          {/* Info grid */}
           <SurfaceCard padding="md" className="flex-1">
             <h2 className="text-lg font-semibold text-text-primary mb-4">Details</h2>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -147,7 +195,6 @@ export default function OpportunityDetailPage() {
               <p className="text-sm text-muted">points reward</p>
             </div>
 
-            {/* Spots progress */}
             <div className="mb-4">
               <div className="flex items-center justify-between text-sm mb-1.5">
                 <span className="text-muted">Spots</span>
@@ -161,7 +208,6 @@ export default function OpportunityDetailPage() {
               </div>
             </div>
 
-            {/* Deadline */}
             <div className="mb-4 text-sm text-muted text-center">
               {deadlineDays > 0 ? (
                 <span>{deadlineDays} days until deadline</span>
@@ -170,7 +216,6 @@ export default function OpportunityDetailPage() {
               )}
             </div>
 
-            {/* Conflict warning */}
             {conflict && (
               <div className="mb-4 rounded-xl bg-warning-light border border-warning/20 p-3">
                 <p className="text-xs font-medium text-warning">
@@ -179,7 +224,6 @@ export default function OpportunityDetailPage() {
               </div>
             )}
 
-            {/* Age restriction warning */}
             {opportunity.ageRestriction && !meetsAge && (
               <div className="mb-4 rounded-xl bg-danger-light border border-danger/20 p-3">
                 <p className="text-xs font-medium text-danger">
@@ -188,14 +232,12 @@ export default function OpportunityDetailPage() {
               </div>
             )}
 
-            {/* Already applied */}
             {existingApplication && (
               <div className="mb-4 text-center">
                 <Badge variant="info" size="md">You have applied</Badge>
               </div>
             )}
 
-            {/* Apply button */}
             {opportunity.status === "open" && !existingApplication && (
               <Button
                 variant="primary"
@@ -218,7 +260,6 @@ export default function OpportunityDetailPage() {
             )}
           </SurfaceCard>
 
-          {/* Contacts */}
           <SurfaceCard padding="md" className="flex-1">
             <h2 className="text-lg font-semibold text-text-primary mb-3">Contacts</h2>
             <div className="flex flex-col gap-2 text-sm">
@@ -255,18 +296,19 @@ export default function OpportunityDetailPage() {
           </>
         }
       >
-        {/* Profile summary */}
-        <div className="rounded-xl bg-surface-2 p-4 mb-4">
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-accent text-white text-sm font-medium">
-              {getInitials(vol.firstName, vol.lastName)}
-            </div>
-            <div>
-              <p className="text-sm font-medium text-text-primary">{vol.firstName} {vol.lastName}</p>
-              <p className="text-xs text-muted">{vol.city} · {vol.league.charAt(0).toUpperCase() + vol.league.slice(1)} League</p>
+        {vol && (
+          <div className="rounded-xl bg-surface-2 p-4 mb-4">
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-accent text-white text-sm font-medium">
+                {getInitials(vol.firstName, vol.lastName)}
+              </div>
+              <div>
+                <p className="text-sm font-medium text-text-primary">{vol.firstName} {vol.lastName}</p>
+                <p className="text-xs text-muted">{vol.city} · {vol.league.charAt(0).toUpperCase() + vol.league.slice(1)} League</p>
+              </div>
             </div>
           </div>
-        </div>
+        )}
 
         <Textarea
           label="Message to organization (optional)"

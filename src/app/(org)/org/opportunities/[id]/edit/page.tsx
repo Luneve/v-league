@@ -1,25 +1,48 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { mockOpportunities } from "@/mocks";
 import { SurfaceCard } from "@/components/ui/SurfaceCard";
 import { Input } from "@/components/ui/Input";
 import { Textarea } from "@/components/ui/Textarea";
 import { Select } from "@/components/ui/Select";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
+import { Skeleton } from "@/components/ui/Skeleton";
 import { DateRangePicker } from "@/components/ui/DateRangePicker";
 import { TimeRangeInput } from "@/components/ui/TimeRangeInput";
 import { useToast } from "@/components/ui/Toast";
 import { CATEGORIES, CITIES, AGE_RESTRICTIONS, OPPORTUNITY_STATUS_BADGE } from "@/lib/constants";
+import { getOpportunity, updateOpportunity } from "@/lib/actions";
+import { mapOpportunity } from "@/lib/mappers";
+import type { Opportunity } from "@/types";
 
 export default function EditOpportunityPage() {
   const params = useParams();
   const router = useRouter();
   const { toast } = useToast();
+  const [opportunity, setOpportunity] = useState<Opportunity | null>(null);
+  const [loading, setLoading] = useState(true);
 
-  const opportunity = mockOpportunities.find((o) => o.id === params.id);
+  useEffect(() => {
+    async function load() {
+      const { data } = await getOpportunity(params.id as string);
+      if (data) {
+        setOpportunity(mapOpportunity(data));
+      }
+      setLoading(false);
+    }
+    load();
+  }, [params.id]);
+
+  if (loading) {
+    return (
+      <div className="flex flex-col gap-6 max-w-2xl mx-auto">
+        <Skeleton className="h-8 w-48" />
+        <Skeleton className="h-64 w-full" />
+      </div>
+    );
+  }
 
   if (!opportunity) {
     return (
@@ -35,7 +58,7 @@ export default function EditOpportunityPage() {
   return <EditForm opportunity={opportunity} />;
 }
 
-function EditForm({ opportunity }: { opportunity: typeof mockOpportunities[0] }) {
+function EditForm({ opportunity }: { opportunity: Opportunity }) {
   const router = useRouter();
   const { toast } = useToast();
   const [saving, setSaving] = useState(false);
@@ -62,13 +85,33 @@ function EditForm({ opportunity }: { opportunity: typeof mockOpportunities[0] })
     setForm((prev) => ({ ...prev, [key]: value }));
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     setSaving(true);
-    setTimeout(() => {
-      setSaving(false);
+    const { error } = await updateOpportunity(opportunity.id, {
+      title: form.title,
+      category: form.category,
+      city: form.city,
+      description: form.description,
+      start_date: form.startDate,
+      end_date: form.endDate,
+      start_time: form.startTime,
+      end_time: form.endTime,
+      capacity: Number(form.capacity),
+      age_restriction: form.ageRestriction ? Number(form.ageRestriction) : null,
+      points_reward: Number(form.pointsReward),
+      apply_deadline: form.applyDeadline,
+      contacts: {
+        telegram: form.telegram || undefined,
+        phone: form.phone || undefined,
+      },
+    });
+    setSaving(false);
+    if (error) {
+      toast("error", error);
+    } else {
       toast("success", "Opportunity updated!");
       router.push("/org/opportunities");
-    }, 800);
+    }
   };
 
   return (
