@@ -45,11 +45,18 @@ export function mapOrganizationProfile(row: any): OrganizationProfile {
 
 // ===== Opportunity =====
 export function mapOpportunity(row: any): Opportunity {
+  if (!row) {
+    throw new Error("Cannot map null or undefined opportunity row");
+  }
+  
+  // Handle both direct organization_profiles and nested structure
+  const orgProfiles = row.organization_profiles;
+  
   return {
     id: row.id,
     organizationId: row.organization_id,
-    organizationName: row.organization_profiles?.name ?? "",
-    orgVerified: row.organization_profiles?.verified ?? false,
+    organizationName: orgProfiles?.name ?? "Unknown Organization",
+    orgVerified: orgProfiles?.verified ?? false,
     title: row.title,
     description: row.description,
     category: row.category,
@@ -71,7 +78,13 @@ export function mapOpportunity(row: any): Opportunity {
 
 // ===== Application =====
 export function mapApplication(row: any): Application {
+  if (!row) {
+    throw new Error("Cannot map null or undefined application row");
+  }
+  
   const opp = row.opportunities;
+  const oppOrgProfiles = opp?.organization_profiles;
+  
   return {
     id: row.id,
     volunteerId: row.volunteer_id,
@@ -80,8 +93,8 @@ export function mapApplication(row: any): Application {
       ? {
           id: opp.id,
           organizationId: opp.organization_id,
-          organizationName: opp.organization_profiles?.name ?? "",
-          orgVerified: opp.organization_profiles?.verified ?? false,
+          organizationName: oppOrgProfiles?.name ?? "Unknown Organization",
+          orgVerified: oppOrgProfiles?.verified ?? false,
           title: opp.title,
           description: opp.description ?? "",
           category: opp.category,

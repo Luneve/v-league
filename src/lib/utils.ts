@@ -8,8 +8,13 @@ export function hasTimeOverlap(
   newOpp: Opportunity
 ): Application | null {
   for (const app of existingApps) {
+    // Skip if not accepted or applied
     if (app.status !== "accepted" && app.status !== "applied") continue;
+    
     const opp = app.opportunity;
+    
+    // Skip if this is the same opportunity (can't conflict with itself)
+    if (opp.id === newOpp.id) continue;
 
     // Check date overlap
     if (opp.endDate < newOpp.startDate || opp.startDate > newOpp.endDate) {

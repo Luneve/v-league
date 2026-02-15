@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo, useCallback } from "react";
+import { useState, useEffect, useMemo, useCallback, useTransition } from "react";
 import { OpportunityCard } from "@/components/shared/OpportunityCard";
 import { FilterBar } from "@/components/ui/FilterBar";
 import { Skeleton } from "@/components/ui/Skeleton";
@@ -63,6 +63,7 @@ export default function FeedPage() {
   const [myApplications, setMyApplications] = useState<Application[]>([]);
   const [loading, setLoading] = useState(true);
   const [defaultCity, setDefaultCity] = useState("");
+  const [isPending, startTransition] = useTransition();
 
   const [filterValues, setFilterValues] = useState<Record<string, string>>({
     city: "",
@@ -74,26 +75,49 @@ export default function FeedPage() {
   });
 
   useEffect(() => {
+    let isMounted = true;
+    
     async function load() {
-      const [oppResult, appResult, profileResult] = await Promise.all([
-        listOpportunities({ status: "open" }),
-        listMyApplications(),
-        getVolunteerProfile(),
-      ]);
-      if (oppResult.data) {
-        setOpportunities(oppResult.data.map(mapOpportunity));
+      try {
+        // Load sequentially to avoid request abortion issues
+        const profileResult = await getVolunteerProfile();
+        if (!isMounted) return;
+        
+        if (profileResult.data) {
+          const vol = mapVolunteerProfile(profileResult.data);
+          setDefaultCity(vol.city);
+          setFilterValues((prev) => ({ ...prev, city: vol.city }));
+        }
+
+        const [oppResult, appResult] = await Promise.all([
+          listOpportunities({ status: "open" }),
+          listMyApplications(),
+        ]);
+        
+        if (!isMounted) return;
+        
+        if (oppResult.data) {
+          setOpportunities(oppResult.data.map(mapOpportunity));
+        }
+        if (appResult.data) {
+          setMyApplications(appResult.data.map(mapApplication));
+        }
+      } catch (error) {
+        console.error("Error loading feed data:", error);
+      } finally {
+        if (isMounted) {
+          setLoading(false);
+        }
       }
-      if (appResult.data) {
-        setMyApplications(appResult.data.map(mapApplication));
-      }
-      if (profileResult.data) {
-        const vol = mapVolunteerProfile(profileResult.data);
-        setDefaultCity(vol.city);
-        setFilterValues((prev) => ({ ...prev, city: vol.city }));
-      }
-      setLoading(false);
     }
-    load();
+    
+    startTransition(() => {
+      load();
+    });
+
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
   const handleFilterChange = (key: string, value: string) => {
@@ -139,6 +163,14 @@ export default function FeedPage() {
     return map;
   }, [filteredOpportunities, myApplications]);
 
+  const applicationStatusMap = useMemo(() => {
+    const map: Record<string, Application["status"]> = {};
+    for (const app of myApplications) {
+      map[app.opportunityId] = app.status;
+    }
+    return map;
+  }, [myApplications]);
+
   if (loading) {
     return (
       <div className="flex flex-col gap-6">
@@ -180,6 +212,7 @@ export default function FeedPage() {
               key={opp.id}
               opportunity={opp}
               hasConflict={!!conflictMap[opp.id]}
+              applicationStatus={applicationStatusMap[opp.id]}
             />
           ))}
         </div>

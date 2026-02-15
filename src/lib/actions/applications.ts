@@ -46,7 +46,7 @@ export async function listMyApplications(filters: {
   let query = supabase
     .from("applications")
     .select(
-      "*, opportunities!inner(id, title, description, category, city, start_date, end_date, start_time, end_time, planned_hours, points_reward, status, organization_id, organization_profiles!inner(name, verified))",
+      "*, opportunities(id, title, description, category, city, start_date, end_date, start_time, end_time, planned_hours, points_reward, status, organization_id, organization_profiles(name, verified))",
       { count: "exact" }
     )
     .eq("volunteer_id", user.id)
@@ -71,7 +71,7 @@ export async function listCandidates(
   let query = supabase
     .from("applications")
     .select(
-      "*, volunteer_profiles!inner(id, first_name, last_name, nickname, city, bio, league, season_points, lifetime_hours, avatar_url)"
+      "*, volunteer_profiles(id, first_name, last_name, nickname, city, bio, league, season_points, lifetime_hours, avatar_url)"
     )
     .eq("opportunity_id", opportunityId)
     .order("applied_at", { ascending: true });

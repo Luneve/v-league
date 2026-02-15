@@ -1,19 +1,23 @@
 "use client";
 
 import Link from "next/link";
-import type { Opportunity } from "@/types";
+import type { Opportunity, ApplicationStatus } from "@/types";
 import { Badge } from "@/components/ui/Badge";
 import { SurfaceCard } from "@/components/ui/SurfaceCard";
-import { OPPORTUNITY_STATUS_BADGE } from "@/lib/constants";
+import { OPPORTUNITY_STATUS_BADGE, APPLICATION_STATUS_BADGE } from "@/lib/constants";
 import { daysUntil } from "@/lib/utils";
 
 interface OpportunityCardProps {
   opportunity: Opportunity;
   hasConflict?: boolean;
+  applicationStatus?: ApplicationStatus;
 }
 
-function OpportunityCard({ opportunity, hasConflict = false }: OpportunityCardProps) {
-  const statusConfig = OPPORTUNITY_STATUS_BADGE[opportunity.status];
+function OpportunityCard({ opportunity, hasConflict = false, applicationStatus }: OpportunityCardProps) {
+  // Use application status if available, otherwise use opportunity status
+  const statusConfig = applicationStatus 
+    ? APPLICATION_STATUS_BADGE[applicationStatus]
+    : OPPORTUNITY_STATUS_BADGE[opportunity.status];
   const deadlineDays = daysUntil(opportunity.applyDeadline);
   const spotsLeft = opportunity.capacity - opportunity.currentApplicants;
 
