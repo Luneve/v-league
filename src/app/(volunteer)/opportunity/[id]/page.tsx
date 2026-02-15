@@ -77,42 +77,42 @@ export default function OpportunityDetailPage() {
         <span className="text-text-primary">{opportunity.title}</span>
       </nav>
 
+      {/* Header */}
+      <div className="mb-6">
+        <div className="flex flex-wrap items-center gap-2 mb-2">
+          <Badge variant="default">{opportunity.category}</Badge>
+          <Badge variant={statusConfig.variant as any}>{statusConfig.label}</Badge>
+        </div>
+        <h1 className="text-2xl font-bold text-text-primary mb-2">{opportunity.title}</h1>
+        <div className="flex items-center gap-2 text-sm text-muted">
+          <Link href={`/org/profile/${opportunity.organizationId}`} className="text-accent hover:underline">
+            {opportunity.organizationName}
+          </Link>
+          {opportunity.orgVerified && (
+            <Badge variant="success" size="sm">
+              <svg className="h-3 w-3" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+              </svg>
+              Verified
+            </Badge>
+          )}
+          <span>·</span>
+          <span>{opportunity.city}</span>
+        </div>
+      </div>
+
+      {/* Cancelled banner */}
+      {opportunity.status === "cancelled" && (
+        <div className="mb-6 rounded-xl bg-danger-light border border-danger/20 p-4">
+          <p className="text-sm font-medium text-danger">
+            This opportunity was cancelled by the organizer.
+          </p>
+        </div>
+      )}
+
       <div className="flex flex-col lg:flex-row gap-6">
         {/* Main content */}
         <div className="flex-1 max-w-3xl">
-          {/* Header */}
-          <div className="mb-6">
-            <div className="flex flex-wrap items-center gap-2 mb-2">
-              <Badge variant="default">{opportunity.category}</Badge>
-              <Badge variant={statusConfig.variant as any}>{statusConfig.label}</Badge>
-            </div>
-            <h1 className="text-2xl font-bold text-text-primary mb-2">{opportunity.title}</h1>
-            <div className="flex items-center gap-2 text-sm text-muted">
-              <Link href={`/org/profile/${opportunity.organizationId}`} className="text-accent hover:underline">
-                {opportunity.organizationName}
-              </Link>
-              {opportunity.orgVerified && (
-                <Badge variant="success" size="sm">
-                  <svg className="h-3 w-3" fill="currentColor" viewBox="0 0 20 20">
-                    <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                  </svg>
-                  Verified
-                </Badge>
-              )}
-              <span>·</span>
-              <span>{opportunity.city}</span>
-            </div>
-          </div>
-
-          {/* Cancelled banner */}
-          {opportunity.status === "cancelled" && (
-            <div className="mb-6 rounded-xl bg-danger-light border border-danger/20 p-4">
-              <p className="text-sm font-medium text-danger">
-                This opportunity was cancelled by the organizer.
-              </p>
-            </div>
-          )}
-
           {/* Description */}
           <SurfaceCard padding="md" className="mb-6">
             <h2 className="text-lg font-semibold text-text-primary mb-3">Description</h2>
