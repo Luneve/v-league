@@ -4,7 +4,6 @@ import { useState, useMemo, useCallback } from "react";
 import { OpportunityCard } from "@/components/shared/OpportunityCard";
 import { FilterBar } from "@/components/ui/FilterBar";
 import { EmptyState } from "@/components/ui/EmptyState";
-import { hasTimeOverlap } from "@/lib/utils";
 import { CATEGORIES, CITIES } from "@/lib/constants";
 import type { FilterConfig } from "@/components/ui/FilterBar";
 import type { Opportunity, Application } from "@/types";
@@ -124,15 +123,6 @@ export function FeedClient({
     });
   }, [initialOpportunities, filterValues]);
 
-  const conflictMap = useMemo(() => {
-    const map: Record<string, boolean> = {};
-    for (const opp of filteredOpportunities) {
-      const conflict = hasTimeOverlap(initialApplications, opp);
-      if (conflict) map[opp.id] = true;
-    }
-    return map;
-  }, [filteredOpportunities, initialApplications]);
-
   const applicationStatusMap = useMemo(() => {
     const map: Record<string, Application["status"]> = {};
     for (const app of initialApplications) {
@@ -178,7 +168,6 @@ export function FeedClient({
             <OpportunityCard
               key={opp.id}
               opportunity={opp}
-              hasConflict={!!conflictMap[opp.id]}
               applicationStatus={applicationStatusMap[opp.id]}
             />
           ))}

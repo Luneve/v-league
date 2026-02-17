@@ -90,6 +90,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "applications_opportunity_id_fkey"
+            columns: ["opportunity_id"]
+            isOneToOne: false
+            referencedRelation: "opportunities_with_counts"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "applications_volunteer_id_fkey"
             columns: ["volunteer_id"]
             isOneToOne: false
@@ -202,6 +209,13 @@ export type Database = {
             columns: ["opportunity_id"]
             isOneToOne: false
             referencedRelation: "opportunities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "completion_records_opportunity_id_fkey"
+            columns: ["opportunity_id"]
+            isOneToOne: false
+            referencedRelation: "opportunities_with_counts"
             referencedColumns: ["id"]
           },
           {
@@ -587,7 +601,40 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      opportunities_with_counts: {
+        Row: {
+          age_restriction: number | null
+          apply_deadline: string | null
+          capacity: number | null
+          category: string | null
+          city: string | null
+          contacts: Json | null
+          created_at: string | null
+          current_applicants: number | null
+          description: string | null
+          end_date: string | null
+          end_time: string | null
+          id: string | null
+          organization_id: string | null
+          organization_profiles: Json | null
+          planned_hours: number | null
+          points_reward: number | null
+          start_date: string | null
+          start_time: string | null
+          status: Database["public"]["Enums"]["opp_status"] | null
+          title: string | null
+          updated_at: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "opportunities_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organization_profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Functions: {
       fn_accept_candidate: {
@@ -606,6 +653,10 @@ export type Database = {
         Args: { p_opportunity_id: string }
         Returns: undefined
       }
+      fn_close_expired_opportunities: {
+        Args: Record<PropertyKey, never>
+        Returns: number
+      }
       fn_create_season: {
         Args: {
           p_duration_days?: Database["public"]["Enums"]["season_duration"]
@@ -613,7 +664,7 @@ export type Database = {
         }
         Returns: string
       }
-      fn_mark_all_notifications_read: { Args: Record<string, never>; Returns: undefined }
+      fn_mark_all_notifications_read: { Args: never; Returns: undefined }
       fn_mark_completion: {
         Args: { p_application_id: string; p_result: string }
         Returns: string
@@ -626,7 +677,7 @@ export type Database = {
         Args: { p_application_id: string }
         Returns: undefined
       }
-      fn_run_season_rollover: { Args: Record<string, never>; Returns: undefined }
+      fn_run_season_rollover: { Args: never; Returns: undefined }
       fn_update_opportunity_status: {
         Args: {
           p_new_status: Database["public"]["Enums"]["opp_status"]
@@ -644,11 +695,12 @@ export type Database = {
         Returns: undefined
       }
       get_config: { Args: { p_key: string }; Returns: Json }
+      get_my_mini_group: { Args: never; Returns: Json }
       get_my_role: {
-        Args: Record<string, never>
+        Args: never
         Returns: Database["public"]["Enums"]["app_role"]
       }
-      is_org_verified: { Args: Record<string, never>; Returns: boolean }
+      is_org_verified: { Args: never; Returns: boolean }
       next_league: {
         Args: { p_league: Database["public"]["Enums"]["league"] }
         Returns: Database["public"]["Enums"]["league"]
@@ -780,3 +832,48 @@ export type Enums<
   : DefaultSchemaEnumNameOrOptions extends keyof DefaultSchema["Enums"]
     ? DefaultSchema["Enums"][DefaultSchemaEnumNameOrOptions]
     : never
+
+export type CompositeTypes<
+  PublicCompositeTypeNameOrOptions extends
+    | keyof DefaultSchema["CompositeTypes"]
+    | { schema: keyof DatabaseWithoutInternals },
+  CompositeTypeName extends PublicCompositeTypeNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"]
+    : never = never,
+> = PublicCompositeTypeNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"][CompositeTypeName]
+  : PublicCompositeTypeNameOrOptions extends keyof DefaultSchema["CompositeTypes"]
+    ? DefaultSchema["CompositeTypes"][PublicCompositeTypeNameOrOptions]
+    : never
+
+export const Constants = {
+  public: {
+    Enums: {
+      app_role: ["volunteer", "organization", "admin"],
+      app_status: [
+        "applied",
+        "waitlist",
+        "accepted",
+        "rejected",
+        "withdrawn",
+        "completed",
+        "no_show",
+      ],
+      league: ["bronze", "silver", "gold", "platinum"],
+      notif_type: [
+        "status_change",
+        "update",
+        "cancellation",
+        "completion",
+        "penalty",
+        "strike",
+      ],
+      opp_status: ["draft", "open", "closed", "cancelled", "completed"],
+      season_duration: ["30", "60", "90", "120"],
+    },
+  },
+} as const

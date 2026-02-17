@@ -3,8 +3,8 @@ import { Badge } from "@/components/ui/Badge";
 import { SurfaceCard } from "@/components/ui/SurfaceCard";
 import { Button } from "@/components/ui/Button";
 import { APPLICATION_STATUS_BADGE } from "@/lib/constants";
-import { formatDate, formatRelativeTime } from "@/lib/utils";
-import { createClient } from "@/lib/supabase/server";
+import { formatDate, formatTime, formatRelativeTime } from "@/lib/utils";
+import { getSupabaseClient, getAuthUser } from "@/lib/supabase/user";
 import { mapApplication } from "@/lib/mappers";
 import type { ApplicationStatus } from "@/types";
 
@@ -24,11 +24,10 @@ export default async function ApplicationDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const supabase = await createClient();
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const [supabase, user] = await Promise.all([
+    getSupabaseClient(),
+    getAuthUser(),
+  ]);
 
   if (!user) {
     return <p className="text-muted">Not authenticated.</p>;
@@ -119,7 +118,7 @@ export default async function ApplicationDetailPage({
           <h2 className="text-lg font-semibold text-text-primary">{opp.title}</h2>
           <p className="text-sm text-muted mt-1">{opp.organizationName} · {opp.city}</p>
           <p className="text-xs text-muted mt-1">
-            {formatDate(opp.startDate)} · {opp.startTime}–{opp.endTime} · {opp.pointsReward} pts
+            {formatDate(opp.startDate)} · {formatTime(opp.startTime)}–{formatTime(opp.endTime)} · {opp.pointsReward} pts
           </p>
         </Link>
       </SurfaceCard>

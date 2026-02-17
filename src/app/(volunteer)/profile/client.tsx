@@ -11,7 +11,7 @@ import { Skeleton } from "@/components/ui/Skeleton";
 import { useToast } from "@/components/ui/Toast";
 import { LEAGUE_CONFIG, CITIES } from "@/lib/constants";
 import { getInitials, formatDate } from "@/lib/utils";
-import { getVolunteerProfile, updateVolunteerProfile } from "@/lib/actions";
+import { getVolunteerProfile, updateVolunteerProfile, signOut } from "@/lib/actions";
 import { mapVolunteerProfile } from "@/lib/mappers";
 import type { VolunteerProfile, CompletedEntry } from "@/types";
 
@@ -227,6 +227,12 @@ export function ProfileClient({
           </div>
         )}
       </SurfaceCard>
+
+      <div className="mt-8 pt-6 border-t border-border">
+        <form action={signOut}>
+          <Button type="submit" variant="outline">Log out</Button>
+        </form>
+      </div>
     </div>
   );
 }

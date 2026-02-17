@@ -10,7 +10,7 @@ import { Modal } from "@/components/ui/Modal";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { useToast } from "@/components/ui/Toast";
 import { APPLICATION_STATUS_BADGE } from "@/lib/constants";
-import { formatDate, getWithdrawalPenalty } from "@/lib/utils";
+import { formatDate, formatTime, getWithdrawalPenalty } from "@/lib/utils";
 import { listMyApplications, withdrawApplication } from "@/lib/actions";
 import { mapApplication } from "@/lib/mappers";
 import type { Application, ApplicationStatus } from "@/types";
@@ -106,7 +106,7 @@ export function ApplicationsClient({ initialApplications }: ApplicationsClientPr
                       {app.opportunity.organizationName} · {app.opportunity.city}
                     </p>
                     <p className="text-xs text-muted mt-1">
-                      {formatDate(app.opportunity.startDate)} · {app.opportunity.startTime}–{app.opportunity.endTime} · {app.opportunity.pointsReward} pts
+                      {formatDate(app.opportunity.startDate)} · {formatTime(app.opportunity.startTime)}–{formatTime(app.opportunity.endTime)} · {app.opportunity.pointsReward} pts
                     </p>
                   </div>
 

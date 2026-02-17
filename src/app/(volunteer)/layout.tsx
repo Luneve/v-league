@@ -1,6 +1,7 @@
-import { createClient } from "@/lib/supabase/server";
+import { getSupabaseClient, getAuthUser } from "@/lib/supabase/user";
 import { mapVolunteerProfile, mapNotification } from "@/lib/mappers";
 import { VolunteerLayoutShell } from "./layout-client";
+import { perfRoute, perfStart, perfEnd, perfSummary } from "@/lib/perf/timing";
 import type { VolunteerProfile, Notification } from "@/types";
 
 export default async function VolunteerLayout({
@@ -8,17 +9,20 @@ export default async function VolunteerLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const supabase = await createClient();
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  perfRoute("/volunteer/layout");
+  perfStart("auth");
+  const [supabase, user] = await Promise.all([
+    getSupabaseClient(),
+    getAuthUser(),
+  ]);
+  perfEnd("auth");
 
   let volProfile: VolunteerProfile | null = null;
   let notifications: Notification[] = [];
   let unreadCount = 0;
 
   if (user) {
+    perfStart("layout-queries");
     const [profileResult, notifResult, unreadResult] = await Promise.all([
       supabase
         .from("volunteer_profiles")
@@ -36,6 +40,7 @@ export default async function VolunteerLayout({
         .eq("user_id", user.id)
         .eq("is_read", false),
     ]);
+    perfEnd("layout-queries");
 
     if (profileResult.data) {
       volProfile = mapVolunteerProfile(profileResult.data);
@@ -47,6 +52,8 @@ export default async function VolunteerLayout({
 
     unreadCount = unreadResult.count ?? 0;
   }
+
+  perfSummary();
 
   return (
     <VolunteerLayoutShell

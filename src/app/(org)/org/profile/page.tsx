@@ -1,13 +1,12 @@
-import { createClient } from "@/lib/supabase/server";
+import { getSupabaseClient, getAuthUser } from "@/lib/supabase/user";
 import { mapOrganizationProfile } from "@/lib/mappers";
 import { OrgProfileClient } from "./client";
 
 export default async function OrgProfilePage() {
-  const supabase = await createClient();
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const [supabase, user] = await Promise.all([
+    getSupabaseClient(),
+    getAuthUser(),
+  ]);
 
   if (!user) {
     return <p className="text-muted">Not authenticated.</p>;

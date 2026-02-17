@@ -9,11 +9,10 @@ import { daysUntil } from "@/lib/utils";
 
 interface OpportunityCardProps {
   opportunity: Opportunity;
-  hasConflict?: boolean;
   applicationStatus?: ApplicationStatus;
 }
 
-function OpportunityCard({ opportunity, hasConflict = false, applicationStatus }: OpportunityCardProps) {
+function OpportunityCard({ opportunity, applicationStatus }: OpportunityCardProps) {
   // Use application status if available, otherwise use opportunity status
   const statusConfig = applicationStatus 
     ? APPLICATION_STATUS_BADGE[applicationStatus]
@@ -26,7 +25,6 @@ function OpportunityCard({ opportunity, hasConflict = false, applicationStatus }
       spotlight
       hover
       padding="md"
-      className={hasConflict ? "border-warning/50" : ""}
     >
       <Link href={`/opportunity/${opportunity.id}`} className="block">
         <div className="flex items-center justify-between mb-3">
@@ -61,13 +59,9 @@ function OpportunityCard({ opportunity, hasConflict = false, applicationStatus }
             </span>
           </div>
           <div className="text-right">
-            {hasConflict && (
-              <Badge variant="warning" size="sm">Conflict</Badge>
-            )}
-            {!hasConflict && deadlineDays > 0 && (
+            {deadlineDays > 0 ? (
               <span className="text-xs text-muted">{deadlineDays}d left</span>
-            )}
-            {!hasConflict && deadlineDays <= 0 && (
+            ) : (
               <span className="text-xs text-danger">Deadline passed</span>
             )}
           </div>

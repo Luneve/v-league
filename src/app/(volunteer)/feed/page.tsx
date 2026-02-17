@@ -5,7 +5,7 @@ import { FeedClient } from "./client";
 export default async function FeedPage() {
   const [profileResult, oppResult, appResult] = await Promise.all([
     getVolunteerProfile(),
-    listOpportunities({ status: "open" }),
+    listOpportunities({ openForApplications: true }),
     listMyApplications(),
   ]);
 

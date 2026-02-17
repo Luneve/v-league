@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { useToast } from "@/components/ui/Toast";
 import { CITIES } from "@/lib/constants";
-import { getOrganizationProfile, updateOrganizationProfile } from "@/lib/actions";
+import { getOrganizationProfile, updateOrganizationProfile, signOut } from "@/lib/actions";
 import { mapOrganizationProfile } from "@/lib/mappers";
 import type { OrganizationProfile } from "@/types";
 
@@ -117,7 +117,10 @@ export function OrgProfileClient({ initialOrg }: OrgProfileClientProps) {
           </div>
         </SurfaceCard>
 
-        <div className="flex justify-end">
+        <div className="flex justify-between items-center">
+          <form action={signOut}>
+            <Button type="submit" variant="outline">Log out</Button>
+          </form>
           <Button variant="primary" onClick={handleSave} loading={saving}>Save</Button>
         </div>
       </div>

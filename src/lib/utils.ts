@@ -1,42 +1,9 @@
-import type { Opportunity, Application } from "@/types";
-
 /**
- * Check if two time intervals overlap on the same date range.
+ * Format time string to HH:MM (no seconds).
  */
-export function hasTimeOverlap(
-  existingApps: Application[],
-  newOpp: Opportunity
-): Application | null {
-  for (const app of existingApps) {
-    // Skip if not accepted or applied
-    if (app.status !== "accepted" && app.status !== "applied") continue;
-    
-    const opp = app.opportunity;
-    
-    // Skip if this is the same opportunity (can't conflict with itself)
-    if (opp.id === newOpp.id) continue;
-
-    // Check date overlap
-    if (opp.endDate < newOpp.startDate || opp.startDate > newOpp.endDate) {
-      continue;
-    }
-
-    // Check time overlap on overlapping dates
-    const existStart = timeToMinutes(opp.startTime);
-    const existEnd = timeToMinutes(opp.endTime);
-    const newStart = timeToMinutes(newOpp.startTime);
-    const newEnd = timeToMinutes(newOpp.endTime);
-
-    if (newStart < existEnd && newEnd > existStart) {
-      return app;
-    }
-  }
-  return null;
-}
-
-function timeToMinutes(time: string): number {
-  const [h, m] = time.split(":").map(Number);
-  return h * 60 + m;
+export function formatTime(timeStr: string): string {
+  if (!timeStr) return "";
+  return timeStr.slice(0, 5);
 }
 
 /**

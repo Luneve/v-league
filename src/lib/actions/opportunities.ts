@@ -9,21 +9,30 @@ interface OpportunityFilters {
   city?: string;
   category?: string;
   deadlineBefore?: string;
+  deadlineAfter?: string;
   startDateFrom?: string;
   startDateTo?: string;
   organizationId?: string;
   pointsMin?: number;
   pointsMax?: number;
   status?: OppStatus;
+  /** When true, only returns opportunities where applications are open (deadline not passed, spots left) */
+  openForApplications?: boolean;
   page?: number;
   pageSize?: number;
 }
 
 export async function listOpportunities(filters: OpportunityFilters = {}) {
   const supabase = await createClient();
-  const { page = 1, pageSize = 20 } = filters;
+  const useOpenFilter = filters.openForApplications;
+  const { page = 1, pageSize = useOpenFilter ? 100 : 20 } = filters;
   const from = (page - 1) * pageSize;
   const to = from + pageSize - 1;
+
+  if (useOpenFilter) {
+    filters.status = "open";
+    filters.deadlineAfter = filters.deadlineAfter ?? new Date().toISOString().slice(0, 10);
+  }
 
   let query = supabase
     .from("opportunities")
@@ -35,6 +44,7 @@ export async function listOpportunities(filters: OpportunityFilters = {}) {
   if (filters.category) query = query.eq("category", filters.category);
   if (filters.status) query = query.eq("status", filters.status);
   if (filters.deadlineBefore) query = query.lte("apply_deadline", filters.deadlineBefore);
+  if (filters.deadlineAfter) query = query.gte("apply_deadline", filters.deadlineAfter);
   if (filters.startDateFrom) query = query.gte("start_date", filters.startDateFrom);
   if (filters.startDateTo) query = query.lte("start_date", filters.startDateTo);
   if (filters.organizationId) query = query.eq("organization_id", filters.organizationId);
@@ -65,15 +75,23 @@ export async function listOpportunities(filters: OpportunityFilters = {}) {
     }
 
     // Add current_applicants to each opportunity
-    const enrichedData = opportunities.map(opp => ({
+    let enrichedData = opportunities.map(opp => ({
       ...opp,
       current_applicants: countMap[opp.id] || 0,
     }));
 
-    return { data: enrichedData, error: null, count };
+    if (useOpenFilter) {
+      enrichedData = enrichedData.filter(o => (o.current_applicants ?? 0) < o.capacity);
+    }
+
+    return { data: enrichedData, error: null, count: useOpenFilter ? enrichedData.length : count };
   }
 
-  return { data: opportunities.map(o => ({ ...o, current_applicants: 0 })), error: null, count };
+  let result = opportunities.map(o => ({ ...o, current_applicants: 0 }));
+  if (useOpenFilter) {
+    result = result.filter(o => 0 < o.capacity);
+  }
+  return { data: result, error: null, count: useOpenFilter ? result.length : count };
 }
 
 export async function getOpportunity(id: string) {

@@ -1,51 +1,34 @@
-import { createClient } from "@/lib/supabase/server";
+import { getSupabaseClient, getAuthUser } from "@/lib/supabase/user";
 import { mapOpportunity } from "@/lib/mappers";
 import { OrgOpportunitiesClient } from "./client";
+import { perfRoute, perfStart, perfEnd, perfSummary } from "@/lib/perf/timing";
 
 export default async function OrgOpportunitiesPage() {
-  const supabase = await createClient();
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  perfRoute("/org/opportunities");
+  perfStart("auth");
+  const [supabase, user] = await Promise.all([
+    getSupabaseClient(),
+    getAuthUser(),
+  ]);
+  perfEnd("auth");
 
   if (!user) {
     return <p className="text-muted">Not authenticated.</p>;
   }
 
-  // Fetch opportunities for this organization
+  perfStart("db-view-query");
   const { data: opportunities } = await supabase
-    .from("opportunities")
-    .select("*, organization_profiles(name, verified)")
+    .from("opportunities_with_counts")
+    .select("*")
     .eq("organization_id", user.id)
     .order("created_at", { ascending: false });
+  perfEnd("db-view-query");
 
-  const oppList = opportunities ?? [];
-  const opportunityIds = oppList.map((o) => o.id);
+  perfStart("transform");
+  const mapped = (opportunities ?? []).map(mapOpportunity);
+  perfEnd("transform");
 
-  // Fetch application counts for enrichment
-  let enriched = oppList.map((o) => ({ ...o, current_applicants: 0 }));
-
-  if (opportunityIds.length > 0) {
-    const { data: appCounts } = await supabase
-      .from("applications")
-      .select("opportunity_id")
-      .in("opportunity_id", opportunityIds)
-      .not("status", "in", '("rejected","withdrawn")');
-
-    const countMap: Record<string, number> = {};
-    if (appCounts) {
-      for (const app of appCounts) {
-        countMap[app.opportunity_id] = (countMap[app.opportunity_id] || 0) + 1;
-      }
-    }
-    enriched = oppList.map((opp) => ({
-      ...opp,
-      current_applicants: countMap[opp.id] || 0,
-    }));
-  }
-
-  const mapped = enriched.map(mapOpportunity);
+  perfSummary();
 
   return <OrgOpportunitiesClient initialOpportunities={mapped} />;
 }

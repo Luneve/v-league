@@ -195,7 +195,7 @@ export function mapMiniGroup(row: any): MiniGroup {
   const members = (row.members ?? []).map((m: any, index: number) => ({
     volunteerId: m.volunteer_id,
     name: m.volunteer_profiles
-      ? `${m.volunteer_profiles.first_name} ${m.volunteer_profiles.last_name}`
+      ? (m.volunteer_profiles.nickname || `${m.volunteer_profiles.first_name} ${m.volunteer_profiles.last_name}`)
       : "Unknown",
     points: m.volunteer_profiles?.season_points ?? 0,
     rank: index + 1,

@@ -2,25 +2,28 @@ import Link from "next/link";
 import { SurfaceCard } from "@/components/ui/SurfaceCard";
 import { Button } from "@/components/ui/Button";
 import { formatRelativeTime } from "@/lib/utils";
-import { createClient } from "@/lib/supabase/server";
+import { getSupabaseClient, getAuthUser } from "@/lib/supabase/user";
 import { mapOpportunity, mapNotification } from "@/lib/mappers";
+import { perfRoute, perfStart, perfEnd, perfSummary } from "@/lib/perf/timing";
 
 export default async function OrgDashboardPage() {
-  const supabase = await createClient();
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  perfRoute("/org/dashboard");
+  perfStart("auth");
+  const [supabase, user] = await Promise.all([
+    getSupabaseClient(),
+    getAuthUser(),
+  ]);
+  perfEnd("auth");
 
   if (!user) {
     return <p className="text-muted">Not authenticated.</p>;
   }
 
-  // Fetch opportunities and recent notifications in parallel (single server round-trip, no POSTs)
+  perfStart("db-queries");
   const [oppResult, notifResult] = await Promise.all([
     supabase
-      .from("opportunities")
-      .select("*, organization_profiles(name, verified)")
+      .from("opportunities_with_counts")
+      .select("*")
       .eq("organization_id", user.id)
       .order("created_at", { ascending: false }),
     supabase
@@ -29,33 +32,10 @@ export default async function OrgDashboardPage() {
       .order("created_at", { ascending: false })
       .limit(5),
   ]);
+  perfEnd("db-queries");
 
-  // Fetch application counts for enrichment
-  const opportunities = oppResult.data ?? [];
-  const opportunityIds = opportunities.map((o) => o.id);
-
-  let enrichedOpportunities = opportunities.map((o) => ({ ...o, current_applicants: 0 }));
-
-  if (opportunityIds.length > 0) {
-    const { data: appCounts } = await supabase
-      .from("applications")
-      .select("opportunity_id")
-      .in("opportunity_id", opportunityIds)
-      .not("status", "in", '("rejected","withdrawn")');
-
-    const countMap: Record<string, number> = {};
-    if (appCounts) {
-      for (const app of appCounts) {
-        countMap[app.opportunity_id] = (countMap[app.opportunity_id] || 0) + 1;
-      }
-    }
-    enrichedOpportunities = opportunities.map((opp) => ({
-      ...opp,
-      current_applicants: countMap[opp.id] || 0,
-    }));
-  }
-
-  const mappedOpportunities = enrichedOpportunities.map(mapOpportunity);
+  perfStart("transform");
+  const mappedOpportunities = (oppResult.data ?? []).map(mapOpportunity);
   const recentNotifs = notifResult.data ? notifResult.data.map(mapNotification) : [];
 
   const stats = [
@@ -64,6 +44,9 @@ export default async function OrgDashboardPage() {
     { label: "Total Applicants", value: mappedOpportunities.reduce((acc, o) => acc + o.currentApplicants, 0) },
     { label: "Completed", value: mappedOpportunities.filter((o) => o.status === "completed").length },
   ];
+  perfEnd("transform");
+
+  perfSummary();
 
   return (
     <div>

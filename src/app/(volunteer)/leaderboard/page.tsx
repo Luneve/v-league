@@ -2,19 +2,42 @@ import { SurfaceCard } from "@/components/ui/SurfaceCard";
 import { Badge } from "@/components/ui/Badge";
 import { LEAGUE_CONFIG } from "@/lib/constants";
 import { formatDate } from "@/lib/utils";
-import { getMyMiniGroup, getCurrentSeason, getVolunteerProfile } from "@/lib/actions";
+import { getSupabaseClient, getAuthUser } from "@/lib/supabase/user";
 import { mapMiniGroup, mapSeason, mapVolunteerProfile } from "@/lib/mappers";
+import { perfRoute, perfStart, perfEnd, perfSummary } from "@/lib/perf/timing";
 
 export default async function LeaderboardPage() {
-  const [groupResult, seasonResult, profileResult] = await Promise.all([
-    getMyMiniGroup(),
-    getCurrentSeason(),
-    getVolunteerProfile(),
+  perfRoute("/leaderboard");
+  perfStart("auth");
+  const [supabase, user] = await Promise.all([
+    getSupabaseClient(),
+    getAuthUser(),
   ]);
+  perfEnd("auth");
 
-  const group = groupResult.data ? mapMiniGroup(groupResult.data) : null;
-  const season = seasonResult.data ? mapSeason(seasonResult.data) : null;
+  if (!user) {
+    return <p className="text-muted">Not authenticated.</p>;
+  }
+
+  perfStart("db-queries");
+  const [groupRpcResult, profileResult] = await Promise.all([
+    supabase.rpc("get_my_mini_group"),
+    supabase
+      .from("volunteer_profiles")
+      .select("*")
+      .eq("id", user.id)
+      .single(),
+  ]);
+  perfEnd("db-queries");
+
+  perfStart("transform");
+  const rpcData = groupRpcResult.data as Record<string, any> | null;
+  const group = rpcData ? mapMiniGroup(rpcData) : null;
+  const season = rpcData?.season ? mapSeason(rpcData.season) : null;
   const vol = profileResult.data ? mapVolunteerProfile(profileResult.data) : null;
+  perfEnd("transform");
+
+  perfSummary();
 
   if (!group) {
     return (

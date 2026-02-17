@@ -3,8 +3,8 @@ import { Badge } from "@/components/ui/Badge";
 import { SurfaceCard } from "@/components/ui/SurfaceCard";
 import { Button } from "@/components/ui/Button";
 import { OPPORTUNITY_STATUS_BADGE } from "@/lib/constants";
-import { formatDate, daysUntil, hasTimeOverlap } from "@/lib/utils";
-import { createClient } from "@/lib/supabase/server";
+import { formatDate, formatTime, daysUntil } from "@/lib/utils";
+import { getSupabaseClient, getAuthUser } from "@/lib/supabase/user";
 import { mapOpportunity, mapApplication, mapVolunteerProfile } from "@/lib/mappers";
 import { OpportunityApplySection } from "./client";
 
@@ -23,11 +23,10 @@ export default async function OpportunityDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const supabase = await createClient();
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const [supabase, user] = await Promise.all([
+    getSupabaseClient(),
+    getAuthUser(),
+  ]);
 
   if (!user) {
     return <p className="text-muted">Not authenticated.</p>;
@@ -88,11 +87,6 @@ export default async function OpportunityDetailPage({
     (a) => a.opportunityId === opportunity.id
   ) ?? null;
 
-  const conflict = hasTimeOverlap(
-    myApplications.filter((a) => a.opportunityId !== opportunity.id),
-    opportunity
-  );
-
   const statusConfig = OPPORTUNITY_STATUS_BADGE[opportunity.status];
   const deadlineDays = daysUntil(opportunity.applyDeadline);
   const spotsLeft = opportunity.capacity - opportunity.currentApplicants;
@@ -103,7 +97,7 @@ export default async function OpportunityDetailPage({
       )
     : 0;
   const meetsAge = !opportunity.ageRestriction || volunteerAge >= opportunity.ageRestriction;
-  const canApply = opportunity.status === "open" && !existingApplication && !conflict && deadlineDays > 0 && spotsLeft > 0;
+  const canApply = opportunity.status === "open" && !existingApplication && deadlineDays > 0 && spotsLeft > 0;
 
   return (
     <div>
@@ -161,7 +155,7 @@ export default async function OpportunityDetailPage({
             <h2 className="text-lg font-semibold text-text-primary mb-4">Details</h2>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <InfoItem label="Date Range" value={`${formatDate(opportunity.startDate)}${opportunity.startDate !== opportunity.endDate ? ` — ${formatDate(opportunity.endDate)}` : ""}`} />
-              <InfoItem label="Time" value={`${opportunity.startTime} — ${opportunity.endTime}`} />
+              <InfoItem label="Time" value={`${formatTime(opportunity.startTime)} — ${formatTime(opportunity.endTime)}`} />
               <InfoItem label="Planned Hours" value={`${opportunity.plannedHours}h`} />
               <InfoItem label="Capacity" value={`${opportunity.currentApplicants}/${opportunity.capacity} applied`} />
               {opportunity.ageRestriction && (
@@ -201,14 +195,6 @@ export default async function OpportunityDetailPage({
                 <span className="text-danger">Deadline passed</span>
               )}
             </div>
-
-            {conflict && (
-              <div className="mb-4 rounded-xl bg-warning-light border border-warning/20 p-3">
-                <p className="text-xs font-medium text-warning">
-                  Schedule conflict with &quot;{conflict.opportunity.title}&quot; on {conflict.opportunity.startDate} ({conflict.opportunity.startTime}–{conflict.opportunity.endTime})
-                </p>
-              </div>
-            )}
 
             {opportunity.ageRestriction && !meetsAge && (
               <div className="mb-4 rounded-xl bg-danger-light border border-danger/20 p-3">

@@ -1,6 +1,7 @@
-import { createClient } from "@/lib/supabase/server";
+import { getSupabaseClient, getAuthUser } from "@/lib/supabase/user";
 import { mapOrganizationProfile, mapNotification } from "@/lib/mappers";
 import { OrgLayoutShell } from "./layout-client";
+import { perfRoute, perfStart, perfEnd, perfSummary } from "@/lib/perf/timing";
 import type { OrganizationProfile, Notification } from "@/types";
 
 export default async function OrgLayout({
@@ -8,17 +9,20 @@ export default async function OrgLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const supabase = await createClient();
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  perfRoute("/org/layout");
+  perfStart("auth");
+  const [supabase, user] = await Promise.all([
+    getSupabaseClient(),
+    getAuthUser(),
+  ]);
+  perfEnd("auth");
 
   let orgProfile: OrganizationProfile | null = null;
   let notifications: Notification[] = [];
   let unreadCount = 0;
 
   if (user) {
+    perfStart("layout-queries");
     const [profileResult, notifResult, unreadResult] = await Promise.all([
       supabase
         .from("organization_profiles")
@@ -36,6 +40,7 @@ export default async function OrgLayout({
         .eq("user_id", user.id)
         .eq("is_read", false),
     ]);
+    perfEnd("layout-queries");
 
     if (profileResult.data) {
       orgProfile = mapOrganizationProfile(profileResult.data);
@@ -47,6 +52,8 @@ export default async function OrgLayout({
 
     unreadCount = unreadResult.count ?? 0;
   }
+
+  perfSummary();
 
   return (
     <OrgLayoutShell
