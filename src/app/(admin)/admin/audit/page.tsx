@@ -1,43 +1,19 @@
-"use client";
-
-import { useState, useEffect } from "react";
 import { SurfaceCard } from "@/components/ui/SurfaceCard";
 import { Badge } from "@/components/ui/Badge";
-import { Skeleton } from "@/components/ui/Skeleton";
 import { formatRelativeTime } from "@/lib/utils";
 import { getAuditLogs } from "@/lib/actions";
 import { mapAuditLogEntry } from "@/lib/mappers";
-import type { AuditLogEntry } from "@/types";
+import type { BadgeVariant } from "@/components/ui/Badge";
 
-const roleBadge: Record<string, string> = {
+const roleBadge: Record<string, BadgeVariant> = {
   volunteer: "info",
   organization: "default",
   admin: "warning",
 };
 
-export default function AuditLogPage() {
-  const [entries, setEntries] = useState<AuditLogEntry[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    async function load() {
-      const { data } = await getAuditLogs({ pageSize: 50 });
-      if (data) {
-        setEntries(data.map(mapAuditLogEntry));
-      }
-      setLoading(false);
-    }
-    load();
-  }, []);
-
-  if (loading) {
-    return (
-      <div className="flex flex-col gap-6">
-        <Skeleton className="h-8 w-48" />
-        <Skeleton className="h-64 w-full" />
-      </div>
-    );
-  }
+export default async function AuditLogPage() {
+  const { data } = await getAuditLogs({ pageSize: 50 });
+  const entries = data ? data.map(mapAuditLogEntry) : [];
 
   return (
     <div>
@@ -60,7 +36,7 @@ export default function AuditLogPage() {
                 <td className="px-4 py-3">
                   <div className="flex items-center gap-2">
                     <span className="font-medium text-text-primary">{entry.actor.name}</span>
-                    <Badge variant={roleBadge[entry.actor.role] as any || "muted"} size="sm">{entry.actor.role}</Badge>
+                    <Badge variant={roleBadge[entry.actor.role] || "muted"} size="sm">{entry.actor.role}</Badge>
                   </div>
                 </td>
                 <td className="px-4 py-3 text-text-primary font-mono text-xs">{entry.action}</td>

@@ -1,61 +1,68 @@
-"use client";
-
-import { useState, useEffect } from "react";
 import Link from "next/link";
 import { SurfaceCard } from "@/components/ui/SurfaceCard";
 import { Button } from "@/components/ui/Button";
-import { Skeleton } from "@/components/ui/Skeleton";
 import { formatRelativeTime } from "@/lib/utils";
-import { listOpportunities, listNotifications } from "@/lib/actions";
-import { useProfile } from "@/hooks/useProfile";
+import { createClient } from "@/lib/supabase/server";
 import { mapOpportunity, mapNotification } from "@/lib/mappers";
-import type { Opportunity, OrganizationProfile, Notification } from "@/types";
 
-export default function OrgDashboardPage() {
-  const { profile } = useProfile();
-  const [opportunities, setOpportunities] = useState<Opportunity[]>([]);
-  const [recentNotifs, setRecentNotifs] = useState<Notification[]>([]);
-  const [loading, setLoading] = useState(true);
+export default async function OrgDashboardPage() {
+  const supabase = await createClient();
 
-  const org = profile as OrganizationProfile | null;
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
 
-  useEffect(() => {
-    async function load() {
-      if (!org) return;
-      const [oppResult, notifResult] = await Promise.all([
-        listOpportunities({ organizationId: org.id }),
-        listNotifications({ pageSize: 5 }),
-      ]);
-      if (oppResult.data) {
-        setOpportunities(oppResult.data.map(mapOpportunity));
-      }
-      if (notifResult.data) {
-        setRecentNotifs(notifResult.data.map(mapNotification));
-      }
-      setLoading(false);
-    }
-    load();
-  }, [org]);
-
-  if (loading) {
-    return (
-      <div className="flex flex-col gap-6">
-        <Skeleton className="h-8 w-48" />
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          {Array.from({ length: 4 }).map((_, i) => (
-            <Skeleton key={i} className="h-24 w-full" />
-          ))}
-        </div>
-        <Skeleton className="h-48 w-full" />
-      </div>
-    );
+  if (!user) {
+    return <p className="text-muted">Not authenticated.</p>;
   }
 
+  // Fetch opportunities and recent notifications in parallel (single server round-trip, no POSTs)
+  const [oppResult, notifResult] = await Promise.all([
+    supabase
+      .from("opportunities")
+      .select("*, organization_profiles(name, verified)")
+      .eq("organization_id", user.id)
+      .order("created_at", { ascending: false }),
+    supabase
+      .from("notifications")
+      .select("*")
+      .order("created_at", { ascending: false })
+      .limit(5),
+  ]);
+
+  // Fetch application counts for enrichment
+  const opportunities = oppResult.data ?? [];
+  const opportunityIds = opportunities.map((o) => o.id);
+
+  let enrichedOpportunities = opportunities.map((o) => ({ ...o, current_applicants: 0 }));
+
+  if (opportunityIds.length > 0) {
+    const { data: appCounts } = await supabase
+      .from("applications")
+      .select("opportunity_id")
+      .in("opportunity_id", opportunityIds)
+      .not("status", "in", '("rejected","withdrawn")');
+
+    const countMap: Record<string, number> = {};
+    if (appCounts) {
+      for (const app of appCounts) {
+        countMap[app.opportunity_id] = (countMap[app.opportunity_id] || 0) + 1;
+      }
+    }
+    enrichedOpportunities = opportunities.map((opp) => ({
+      ...opp,
+      current_applicants: countMap[opp.id] || 0,
+    }));
+  }
+
+  const mappedOpportunities = enrichedOpportunities.map(mapOpportunity);
+  const recentNotifs = notifResult.data ? notifResult.data.map(mapNotification) : [];
+
   const stats = [
-    { label: "Total Opportunities", value: opportunities.length },
-    { label: "Open", value: opportunities.filter((o) => o.status === "open").length },
-    { label: "Total Applicants", value: opportunities.reduce((acc, o) => acc + o.currentApplicants, 0) },
-    { label: "Completed", value: opportunities.filter((o) => o.status === "completed").length },
+    { label: "Total Opportunities", value: mappedOpportunities.length },
+    { label: "Open", value: mappedOpportunities.filter((o) => o.status === "open").length },
+    { label: "Total Applicants", value: mappedOpportunities.reduce((acc, o) => acc + o.currentApplicants, 0) },
+    { label: "Completed", value: mappedOpportunities.filter((o) => o.status === "completed").length },
   ];
 
   return (

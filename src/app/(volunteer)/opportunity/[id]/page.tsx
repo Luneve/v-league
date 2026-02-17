@@ -1,97 +1,97 @@
-"use client";
-
-import { useState, useEffect, useMemo } from "react";
-import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { Badge } from "@/components/ui/Badge";
 import { SurfaceCard } from "@/components/ui/SurfaceCard";
 import { Button } from "@/components/ui/Button";
-import { Modal } from "@/components/ui/Modal";
-import { Textarea } from "@/components/ui/Textarea";
-import { Skeleton } from "@/components/ui/Skeleton";
-import { useToast } from "@/components/ui/Toast";
 import { OPPORTUNITY_STATUS_BADGE } from "@/lib/constants";
-import { formatDate, daysUntil, hasTimeOverlap, getInitials } from "@/lib/utils";
-import {
-  getOpportunity,
-  listMyApplications,
-  getVolunteerProfile,
-  applyToOpportunity,
-} from "@/lib/actions";
+import { formatDate, daysUntil, hasTimeOverlap } from "@/lib/utils";
+import { createClient } from "@/lib/supabase/server";
 import { mapOpportunity, mapApplication, mapVolunteerProfile } from "@/lib/mappers";
-import type { Opportunity, Application, VolunteerProfile } from "@/types";
+import { OpportunityApplySection } from "./client";
 
-export default function OpportunityDetailPage() {
-  const params = useParams();
-  const router = useRouter();
-  const { toast } = useToast();
-  const [applyModalOpen, setApplyModalOpen] = useState(false);
-  const [message, setMessage] = useState("");
-  const [applying, setApplying] = useState(false);
+function InfoItem({ label, value }: { label: string; value: string }) {
+  return (
+    <div>
+      <p className="text-xs text-muted mb-0.5">{label}</p>
+      <p className="text-sm font-medium text-text-primary">{value}</p>
+    </div>
+  );
+}
 
-  const [opportunity, setOpportunity] = useState<Opportunity | null>(null);
-  const [myApplications, setMyApplications] = useState<Application[]>([]);
-  const [vol, setVol] = useState<VolunteerProfile | null>(null);
-  const [loading, setLoading] = useState(true);
+export default async function OpportunityDetailPage({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
+  const { id } = await params;
+  const supabase = await createClient();
 
-  useEffect(() => {
-    async function load() {
-      const id = params.id as string;
-      const [oppResult, appResult, profileResult] = await Promise.all([
-        getOpportunity(id),
-        listMyApplications(),
-        getVolunteerProfile(),
-      ]);
-      if (oppResult.data) {
-        setOpportunity(mapOpportunity(oppResult.data));
-      }
-      if (appResult.data) {
-        setMyApplications(appResult.data.map(mapApplication));
-      }
-      if (profileResult.data) {
-        setVol(mapVolunteerProfile(profileResult.data));
-      }
-      setLoading(false);
-    }
-    load();
-  }, [params.id]);
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
 
-  const existingApplication = useMemo(() => {
-    if (!opportunity || !vol) return null;
-    return myApplications.find(
-      (a) => a.opportunityId === opportunity.id
-    ) ?? null;
-  }, [opportunity, vol, myApplications]);
-
-  const conflict = useMemo(() => {
-    if (!opportunity) return null;
-    const otherApps = myApplications.filter((a) => a.opportunityId !== opportunity.id);
-    return hasTimeOverlap(otherApps, opportunity);
-  }, [opportunity, myApplications]);
-
-  if (loading) {
-    return (
-      <div className="flex flex-col gap-6">
-        <Skeleton className="h-8 w-64" />
-        <Skeleton className="h-48 w-full" />
-        <Skeleton className="h-32 w-full" />
-      </div>
-    );
+  if (!user) {
+    return <p className="text-muted">Not authenticated.</p>;
   }
 
-  if (!opportunity) {
+  // Fetch opportunity, user's applications, and volunteer profile in parallel
+  const [oppResult, appsResult, volResult] = await Promise.all([
+    (async () => {
+      const { data: opportunity } = await supabase
+        .from("opportunities")
+        .select("*, organization_profiles(name, verified)")
+        .eq("id", id)
+        .single();
+
+      if (!opportunity) return null;
+
+      const { count } = await supabase
+        .from("applications")
+        .select("id", { count: "exact", head: true })
+        .eq("opportunity_id", id)
+        .not("status", "in", '("rejected","withdrawn")');
+
+      return { ...opportunity, current_applicants: count ?? 0 };
+    })(),
+    supabase
+      .from("applications")
+      .select(
+        "*, opportunities(id, title, description, category, city, start_date, end_date, start_time, end_time, planned_hours, points_reward, status, organization_id, organization_profiles(name, verified))"
+      )
+      .eq("volunteer_id", user.id)
+      .order("applied_at", { ascending: false }),
+    supabase
+      .from("volunteer_profiles")
+      .select("*")
+      .eq("id", user.id)
+      .single(),
+  ]);
+
+  if (!oppResult) {
     return (
       <div className="flex items-center justify-center min-h-[50vh]">
         <div className="text-center">
           <h2 className="text-xl font-semibold text-text-primary mb-2">Opportunity not found</h2>
           <p className="text-sm text-muted mb-4">The opportunity you&apos;re looking for doesn&apos;t exist or has been removed.</p>
-          <Button variant="outline" onClick={() => router.push("/feed")}>
-            Back to Feed
-          </Button>
+          <Link href="/feed">
+            <Button variant="outline">Back to Feed</Button>
+          </Link>
         </div>
       </div>
     );
   }
+
+  const opportunity = mapOpportunity(oppResult);
+  const myApplications = appsResult.data ? appsResult.data.map(mapApplication) : [];
+  const vol = volResult.data ? mapVolunteerProfile(volResult.data) : null;
+
+  const existingApplication = myApplications.find(
+    (a) => a.opportunityId === opportunity.id
+  ) ?? null;
+
+  const conflict = hasTimeOverlap(
+    myApplications.filter((a) => a.opportunityId !== opportunity.id),
+    opportunity
+  );
 
   const statusConfig = OPPORTUNITY_STATUS_BADGE[opportunity.status];
   const deadlineDays = daysUntil(opportunity.applyDeadline);
@@ -104,20 +104,6 @@ export default function OpportunityDetailPage() {
     : 0;
   const meetsAge = !opportunity.ageRestriction || volunteerAge >= opportunity.ageRestriction;
   const canApply = opportunity.status === "open" && !existingApplication && !conflict && deadlineDays > 0 && spotsLeft > 0;
-
-  const handleApply = async () => {
-    setApplying(true);
-    const { error } = await applyToOpportunity(opportunity.id, message || undefined);
-    setApplying(false);
-    if (error) {
-      setApplyModalOpen(false);
-      toast("error", error);
-    } else {
-      setApplyModalOpen(false);
-      toast("success", "Application submitted!");
-      router.push("/applications");
-    }
-  };
 
   return (
     <div>
@@ -238,26 +224,15 @@ export default function OpportunityDetailPage() {
               </div>
             )}
 
-            {opportunity.status === "open" && !existingApplication && (
-              <Button
-                variant="primary"
-                fullWidth
-                disabled={!canApply || !meetsAge}
-                onClick={() => setApplyModalOpen(true)}
-              >
-                Apply Now
-              </Button>
-            )}
-
-            {opportunity.status === "closed" && (
-              <Button variant="secondary" fullWidth disabled>
-                Applications Closed
-              </Button>
-            )}
-
-            {opportunity.status === "completed" && (
-              <p className="text-sm text-muted text-center">This opportunity has concluded.</p>
-            )}
+            {/* Interactive apply section (client component) */}
+            <OpportunityApplySection
+              opportunityId={opportunity.id}
+              opportunityTitle={opportunity.title}
+              opportunityStatus={opportunity.status}
+              canApply={canApply && meetsAge}
+              hasExistingApplication={!!existingApplication}
+              volunteer={vol}
+            />
           </SurfaceCard>
 
           <SurfaceCard padding="md" className="flex-1">
@@ -279,55 +254,6 @@ export default function OpportunityDetailPage() {
           </SurfaceCard>
         </div>
       </div>
-
-      {/* Apply Modal */}
-      <Modal
-        open={applyModalOpen}
-        onClose={() => setApplyModalOpen(false)}
-        title={`Apply to ${opportunity.title}`}
-        footer={
-          <>
-            <Button variant="ghost" onClick={() => setApplyModalOpen(false)}>
-              Cancel
-            </Button>
-            <Button variant="primary" loading={applying} onClick={handleApply}>
-              Submit Application
-            </Button>
-          </>
-        }
-      >
-        {vol && (
-          <div className="rounded-xl bg-surface-2 p-4 mb-4">
-            <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-accent text-white text-sm font-medium">
-                {getInitials(vol.firstName, vol.lastName)}
-              </div>
-              <div>
-                <p className="text-sm font-medium text-text-primary">{vol.firstName} {vol.lastName}</p>
-                <p className="text-xs text-muted">{vol.city} · {vol.league.charAt(0).toUpperCase() + vol.league.slice(1)} League</p>
-              </div>
-            </div>
-          </div>
-        )}
-
-        <Textarea
-          label="Message to organization (optional)"
-          placeholder="Tell the organization why you'd like to volunteer..."
-          value={message}
-          onChange={(e) => setMessage(e.target.value)}
-          maxChars={500}
-          currentLength={message.length}
-        />
-      </Modal>
-    </div>
-  );
-}
-
-function InfoItem({ label, value }: { label: string; value: string }) {
-  return (
-    <div>
-      <p className="text-xs text-muted mb-0.5">{label}</p>
-      <p className="text-sm font-medium text-text-primary">{value}</p>
     </div>
   );
 }

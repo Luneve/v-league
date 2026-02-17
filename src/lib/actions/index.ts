@@ -62,7 +62,6 @@ export {
   listNotifications,
   markNotificationRead,
   markAllNotificationsRead,
-  getUnreadCount,
 } from "./notifications";
 
 // Seasons & Leaderboard

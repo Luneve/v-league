@@ -55,17 +55,21 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
-  // If authenticated user visits auth pages, redirect to appropriate home
-  if (user && isAuthPage) {
-    // Fetch role for redirect
+  // Read role from JWT user_metadata (set at signup) to avoid a DB query per request.
+  // Falls back to profiles table only if metadata is missing (e.g. older accounts).
+  let role: string | undefined = user?.user_metadata?.role;
+  if (user && !role) {
     const { data: profile } = await supabase
       .from("profiles")
       .select("role")
       .eq("id", user.id)
       .single();
+    role = profile?.role;
+  }
 
+  // If authenticated user visits auth pages, redirect to appropriate home
+  if (user && isAuthPage) {
     const url = request.nextUrl.clone();
-    const role = profile?.role;
     if (role === "organization") {
       url.pathname = "/org/dashboard";
     } else if (role === "admin") {
@@ -78,13 +82,6 @@ export async function middleware(request: NextRequest) {
 
   // Role-based route protection
   if (user && !isAuthPage) {
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("role")
-      .eq("id", user.id)
-      .single();
-
-    const role = profile?.role;
     const url = request.nextUrl.clone();
 
     if (role === "volunteer") {

@@ -1,5 +1,6 @@
 "use client";
 
+import { memo } from "react";
 import Link from "next/link";
 import { ThemeToggle } from "@/components/ui/ThemeToggle";
 
@@ -11,7 +12,7 @@ interface TopNavProps {
   userInitials?: string;
 }
 
-function TopNav({
+const TopNav = memo(function TopNav({
   onMenuToggle,
   notificationCount = 0,
   onNotificationClick,
@@ -70,7 +71,7 @@ function TopNav({
       </div>
     </header>
   );
-}
+});
 
 export { TopNav };
 export type { TopNavProps };

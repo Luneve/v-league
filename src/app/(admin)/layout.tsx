@@ -1,93 +1,49 @@
-"use client";
-
-import { AppShell } from "@/components/layout";
-import { useState, useEffect, useCallback } from "react";
-import { Drawer } from "@/components/ui/Drawer";
-import { NotificationList } from "@/components/shared/NotificationList";
-import { Skeleton } from "@/components/ui/Skeleton";
-import {
-  listNotifications,
-  getUnreadCount,
-  markNotificationRead,
-  markAllNotificationsRead,
-} from "@/lib/actions";
+import { createClient } from "@/lib/supabase/server";
 import { mapNotification } from "@/lib/mappers";
+import { AdminLayoutShell } from "./layout-client";
 import type { Notification } from "@/types";
 
-export default function AdminLayout({
+export default async function AdminLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  const [notifOpen, setNotifOpen] = useState(false);
-  const [notifications, setNotifications] = useState<Notification[]>([]);
-  const [unreadCount, setUnreadCount] = useState(0);
+  const supabase = await createClient();
 
-  const fetchNotifications = useCallback(async () => {
-    const [notifResult, countResult] = await Promise.all([
-      listNotifications(),
-      getUnreadCount(),
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  let notifications: Notification[] = [];
+  let unreadCount = 0;
+
+  if (user) {
+    const [notifResult, unreadResult] = await Promise.all([
+      supabase
+        .from("notifications")
+        .select("*")
+        .order("created_at", { ascending: false })
+        .limit(20),
+      supabase
+        .from("notifications")
+        .select("id", { count: "exact", head: true })
+        .eq("user_id", user.id)
+        .eq("is_read", false),
     ]);
+
     if (notifResult.data) {
-      setNotifications(notifResult.data.map(mapNotification));
+      notifications = notifResult.data.map(mapNotification);
     }
-    setUnreadCount(countResult.count ?? 0);
-  }, []);
 
-  useEffect(() => {
-    fetchNotifications();
-  }, [fetchNotifications]);
-
-  const handleMarkRead = async (id: string) => {
-    setNotifications((prev) =>
-      prev.map((n) => (n.id === id ? { ...n, read: true } : n))
-    );
-    setUnreadCount((c) => Math.max(0, c - 1));
-    await markNotificationRead(id);
-  };
-
-  const handleMarkAllRead = async () => {
-    setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
-    setUnreadCount(0);
-    await markAllNotificationsRead();
-  };
-
-  const [loading, setLoading] = useState(true);
-  useEffect(() => {
-    setLoading(false);
-  }, []);
-
-  if (loading) {
-    return (
-      <div className="flex h-screen items-center justify-center">
-        <Skeleton className="h-8 w-48" />
-      </div>
-    );
+    unreadCount = unreadResult.count ?? 0;
   }
 
   return (
-    <AppShell
-      role="admin"
-      userName="Admin"
-      userInitials="A"
-      notificationCount={unreadCount}
-      onNotificationClick={() => {
-        setNotifOpen(true);
-        fetchNotifications();
-      }}
+    <AdminLayoutShell
+      initialNotifications={notifications}
+      initialUnreadCount={unreadCount}
     >
       {children}
-      <Drawer
-        open={notifOpen}
-        onClose={() => setNotifOpen(false)}
-        title="Notifications"
-      >
-        <NotificationList
-          notifications={notifications}
-          onMarkRead={handleMarkRead}
-          onMarkAllRead={handleMarkAllRead}
-        />
-      </Drawer>
-    </AppShell>
+    </AdminLayoutShell>
   );
 }

@@ -1,115 +1,51 @@
-"use client";
-
-import { useState, useEffect, useMemo } from "react";
-import Link from "next/link";
-import { SurfaceCard } from "@/components/ui/SurfaceCard";
-import { Button } from "@/components/ui/Button";
-import { Badge } from "@/components/ui/Badge";
-import { Tabs } from "@/components/ui/Tabs";
-import { EmptyState } from "@/components/ui/EmptyState";
-import { Skeleton } from "@/components/ui/Skeleton";
-import { OPPORTUNITY_STATUS_BADGE } from "@/lib/constants";
-import { formatDate } from "@/lib/utils";
-import { listOpportunities } from "@/lib/actions";
-import { useProfile } from "@/hooks/useProfile";
+import { createClient } from "@/lib/supabase/server";
 import { mapOpportunity } from "@/lib/mappers";
-import type { Opportunity, OrganizationProfile } from "@/types";
+import { OrgOpportunitiesClient } from "./client";
 
-export default function OrgOpportunitiesPage() {
-  const { profile } = useProfile();
-  const [opportunities, setOpportunities] = useState<Opportunity[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState("all");
+export default async function OrgOpportunitiesPage() {
+  const supabase = await createClient();
 
-  const org = profile as OrganizationProfile | null;
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
 
-  useEffect(() => {
-    async function load() {
-      if (!org) return;
-      const { data } = await listOpportunities({ organizationId: org.id });
-      if (data) {
-        setOpportunities(data.map(mapOpportunity));
-      }
-      setLoading(false);
-    }
-    load();
-  }, [org]);
-
-  const tabs = useMemo(() => [
-    { id: "all", label: "All", count: opportunities.length },
-    { id: "draft", label: "Draft", count: opportunities.filter((o) => o.status === "draft").length },
-    { id: "open", label: "Open", count: opportunities.filter((o) => o.status === "open").length },
-    { id: "closed", label: "Closed", count: opportunities.filter((o) => o.status === "closed").length },
-    { id: "completed", label: "Completed", count: opportunities.filter((o) => o.status === "completed").length },
-    { id: "cancelled", label: "Cancelled", count: opportunities.filter((o) => o.status === "cancelled").length },
-  ], [opportunities]);
-
-  const filtered = activeTab === "all" ? opportunities : opportunities.filter((o) => o.status === activeTab);
-
-  if (loading) {
-    return (
-      <div className="flex flex-col gap-6">
-        <Skeleton className="h-8 w-48" />
-        <Skeleton className="h-12 w-full" />
-        {Array.from({ length: 3 }).map((_, i) => (
-          <Skeleton key={i} className="h-20 w-full" />
-        ))}
-      </div>
-    );
+  if (!user) {
+    return <p className="text-muted">Not authenticated.</p>;
   }
 
-  return (
-    <div>
-      <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-bold text-text-primary">My Opportunities</h1>
-        <Link href="/org/opportunities/new">
-          <Button variant="primary">Create New</Button>
-        </Link>
-      </div>
+  // Fetch opportunities for this organization
+  const { data: opportunities } = await supabase
+    .from("opportunities")
+    .select("*, organization_profiles(name, verified)")
+    .eq("organization_id", user.id)
+    .order("created_at", { ascending: false });
 
-      <Tabs tabs={tabs} activeTab={activeTab} onChange={setActiveTab} className="mb-6" />
+  const oppList = opportunities ?? [];
+  const opportunityIds = oppList.map((o) => o.id);
 
-      {filtered.length === 0 ? (
-        <EmptyState
-          icon={
-            <svg className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M20.25 14.15v4.25c0 1.094-.787 2.036-1.872 2.18-2.087.277-4.216.42-6.378.42s-4.291-.143-6.378-.42c-1.085-.144-1.872-1.086-1.872-2.18v-4.25m16.5 0a2.18 2.18 0 00.75-1.661V8.706c0-1.081-.768-2.015-1.837-2.175a48.114 48.114 0 00-3.413-.387m4.5 8.006c-.194.165-.42.295-.673.38A23.978 23.978 0 0112 15.75c-2.648 0-5.195-.429-7.577-1.22a2.016 2.016 0 01-.673-.38m0 0A2.18 2.18 0 013 12.489V8.706c0-1.081.768-2.015 1.837-2.175a48.111 48.111 0 013.413-.387m7.5 0V5.25A2.25 2.25 0 0013.5 3h-3a2.25 2.25 0 00-2.25 2.25v.894m7.5 0a48.667 48.667 0 00-7.5 0M12 12.75h.008v.008H12v-.008z" />
-            </svg>
-          }
-          title="No opportunities yet"
-          description="You haven't created any opportunities yet. Start by creating your first one."
-          action={{ label: "Create Opportunity", onClick: () => window.location.href = "/org/opportunities/new" }}
-        />
-      ) : (
-        <div className="flex flex-col gap-3">
-          {filtered.map((opp) => {
-            const statusCfg = OPPORTUNITY_STATUS_BADGE[opp.status];
-            return (
-              <SurfaceCard key={opp.id} padding="md" hover>
-                <div className="flex flex-col sm:flex-row sm:items-center gap-3">
-                  <div className="flex-1 min-w-0">
-                    <h3 className="text-base font-semibold text-text-primary">
-                      {opp.title}
-                    </h3>
-                    <p className="text-sm text-muted mt-0.5">
-                      {formatDate(opp.startDate)} · {opp.city} · {opp.currentApplicants}/{opp.capacity} applicants
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-3 shrink-0">
-                    <Badge variant={statusCfg.variant as any}>{statusCfg.label}</Badge>
-                    <Link href={`/org/opportunities/${opp.id}/edit`}>
-                      <Button variant="ghost" size="sm">Edit</Button>
-                    </Link>
-                    <Link href={`/org/opportunities/${opp.id}/candidates`}>
-                      <Button variant="outline" size="sm">Candidates</Button>
-                    </Link>
-                  </div>
-                </div>
-              </SurfaceCard>
-            );
-          })}
-        </div>
-      )}
-    </div>
-  );
+  // Fetch application counts for enrichment
+  let enriched = oppList.map((o) => ({ ...o, current_applicants: 0 }));
+
+  if (opportunityIds.length > 0) {
+    const { data: appCounts } = await supabase
+      .from("applications")
+      .select("opportunity_id")
+      .in("opportunity_id", opportunityIds)
+      .not("status", "in", '("rejected","withdrawn")');
+
+    const countMap: Record<string, number> = {};
+    if (appCounts) {
+      for (const app of appCounts) {
+        countMap[app.opportunity_id] = (countMap[app.opportunity_id] || 0) + 1;
+      }
+    }
+    enriched = oppList.map((opp) => ({
+      ...opp,
+      current_applicants: countMap[opp.id] || 0,
+    }));
+  }
+
+  const mapped = enriched.map(mapOpportunity);
+
+  return <OrgOpportunitiesClient initialOpportunities={mapped} />;
 }

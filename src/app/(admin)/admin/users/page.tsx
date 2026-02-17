@@ -5,7 +5,6 @@ import { SurfaceCard } from "@/components/ui/SurfaceCard";
 import { Badge } from "@/components/ui/Badge";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { LEAGUE_CONFIG } from "@/lib/constants";
-import { listUsers } from "@/lib/actions";
 
 interface VolunteerRow {
   id: string;
@@ -22,21 +21,6 @@ export default function UsersPage() {
   const [volunteers, setVolunteers] = useState<VolunteerRow[]>([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    async function load() {
-      // listUsers returns profiles table; we need volunteer_profiles
-      // For now, use the profiles endpoint and get volunteer-specific data
-      const { data } = await listUsers({ role: "volunteer" });
-      // The listUsers returns from profiles table which doesn't have volunteer fields
-      // We'll need to fetch from volunteer_profiles directly via a workaround
-      // For simplicity, import the supabase client approach
-      setLoading(false);
-    }
-    load();
-  }, []);
-
-  // Since listUsers returns profiles (id, role, created_at), 
-  // and we need volunteer_profiles fields, let's fetch them directly
   useEffect(() => {
     async function loadVolunteers() {
       const { createClient } = await import("@/lib/supabase/client");

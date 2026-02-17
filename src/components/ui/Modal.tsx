@@ -58,12 +58,13 @@ function Modal({
         if (e.target === overlayRef.current) onClose();
       }}
     >
-      <div className="fixed inset-0 bg-black/50 backdrop-blur-sm" />
+      <div className="fixed inset-0 bg-black/50 backdrop-blur-sm" style={{ willChange: "opacity" }} />
       <div
         ref={contentRef}
         role="dialog"
         aria-modal="true"
         aria-label={title}
+        style={{ willChange: "transform, opacity" }}
         className={`
           relative z-10 w-full rounded-2xl border border-border
           bg-surface shadow-[var(--shadow-lg)]

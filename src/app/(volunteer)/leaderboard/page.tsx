@@ -1,57 +1,22 @@
-"use client";
-
-import { useState, useEffect } from "react";
 import { SurfaceCard } from "@/components/ui/SurfaceCard";
 import { Badge } from "@/components/ui/Badge";
-import { Skeleton } from "@/components/ui/Skeleton";
 import { LEAGUE_CONFIG } from "@/lib/constants";
 import { formatDate } from "@/lib/utils";
 import { getMyMiniGroup, getCurrentSeason, getVolunteerProfile } from "@/lib/actions";
 import { mapMiniGroup, mapSeason, mapVolunteerProfile } from "@/lib/mappers";
-import type { MiniGroup, Season, VolunteerProfile } from "@/types";
 
-export default function LeaderboardPage() {
-  const [group, setGroup] = useState<MiniGroup | null>(null);
-  const [season, setSeason] = useState<Season | null>(null);
-  const [vol, setVol] = useState<VolunteerProfile | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [noGroup, setNoGroup] = useState(false);
+export default async function LeaderboardPage() {
+  const [groupResult, seasonResult, profileResult] = await Promise.all([
+    getMyMiniGroup(),
+    getCurrentSeason(),
+    getVolunteerProfile(),
+  ]);
 
-  useEffect(() => {
-    async function load() {
-      const [groupResult, seasonResult, profileResult] = await Promise.all([
-        getMyMiniGroup(),
-        getCurrentSeason(),
-        getVolunteerProfile(),
-      ]);
+  const group = groupResult.data ? mapMiniGroup(groupResult.data) : null;
+  const season = seasonResult.data ? mapSeason(seasonResult.data) : null;
+  const vol = profileResult.data ? mapVolunteerProfile(profileResult.data) : null;
 
-      if (groupResult.data) {
-        setGroup(mapMiniGroup(groupResult.data));
-      } else {
-        setNoGroup(true);
-      }
-      if (seasonResult.data) {
-        setSeason(mapSeason(seasonResult.data));
-      }
-      if (profileResult.data) {
-        setVol(mapVolunteerProfile(profileResult.data));
-      }
-      setLoading(false);
-    }
-    load();
-  }, []);
-
-  if (loading) {
-    return (
-      <div className="flex flex-col gap-6 max-w-3xl">
-        <Skeleton className="h-8 w-48" />
-        <Skeleton className="h-24 w-full" />
-        <Skeleton className="h-64 w-full" />
-      </div>
-    );
-  }
-
-  if (noGroup || !group) {
+  if (!group) {
     return (
       <div className="max-w-3xl">
         <h1 className="text-2xl font-bold text-text-primary mb-2">Leaderboard</h1>
@@ -61,7 +26,9 @@ export default function LeaderboardPage() {
           </p>
         )}
         <SurfaceCard padding="lg" className="text-center">
-          <p className="text-sm text-muted">You are not assigned to a mini-group yet. Groups are assigned at the start of each season.</p>
+          <p className="text-sm text-muted">
+            You are not assigned to a mini-group yet. Groups are assigned at the start of each season.
+          </p>
         </SurfaceCard>
       </div>
     );
@@ -89,7 +56,9 @@ export default function LeaderboardPage() {
               <p className="text-3xl font-bold text-accent">#{myRank.rank}</p>
             </div>
             <div className="text-right">
-              <Badge variant="default" size="md">{leagueCfg.label} League</Badge>
+              <Badge variant="default" size="md">
+                {leagueCfg.label} League
+              </Badge>
               <p className="text-sm text-muted mt-1">{myRank.points} points</p>
             </div>
           </div>
@@ -109,7 +78,9 @@ export default function LeaderboardPage() {
           <h2 className="text-base font-semibold text-text-primary">
             {leagueCfg.label} League — Group
           </h2>
-          <p className="text-xs text-muted">{group.members.length} members · Top {topCount} promoted</p>
+          <p className="text-xs text-muted">
+            {group.members.length} members · Top {topCount} promoted
+          </p>
         </div>
         <table className="w-full text-sm">
           <thead>
@@ -131,17 +102,23 @@ export default function LeaderboardPage() {
                   }`}
                 >
                   <td className="px-4 py-2.5">
-                    <span className={`text-sm font-bold ${inPromoZone ? "text-success" : "text-muted"}`}>
+                    <span
+                      className={`text-sm font-bold ${inPromoZone ? "text-success" : "text-muted"}`}
+                    >
                       #{member.rank}
                     </span>
                   </td>
                   <td className="px-4 py-2.5">
-                    <span className={`text-sm ${isMe ? "font-bold text-accent" : "text-text-primary"}`}>
+                    <span
+                      className={`text-sm ${isMe ? "font-bold text-accent" : "text-text-primary"}`}
+                    >
                       {member.name} {isMe && "(You)"}
                     </span>
                   </td>
                   <td className="px-4 py-2.5 text-right">
-                    <span className="text-sm font-medium text-text-primary">{member.points}</span>
+                    <span className="text-sm font-medium text-text-primary">
+                      {member.points}
+                    </span>
                   </td>
                 </tr>
               );

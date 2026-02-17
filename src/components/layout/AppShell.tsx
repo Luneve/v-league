@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { Sidebar } from "./Sidebar";
 import { TopNav } from "./TopNav";
 import type { Role } from "@/types";
@@ -24,6 +24,9 @@ function AppShell({
 }: AppShellProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
+  const handleOpenSidebar = useCallback(() => setSidebarOpen(true), []);
+  const handleCloseSidebar = useCallback(() => setSidebarOpen(false), []);
+
   return (
     <div className="flex h-screen overflow-hidden bg-bg">
       {/* Desktop sidebar */}
@@ -35,11 +38,11 @@ function AppShell({
       {sidebarOpen && (
         <div className="fixed inset-0 z-50 flex lg:hidden">
           <div
-            className="fixed inset-0 bg-black/50 backdrop-blur-sm"
-            onClick={() => setSidebarOpen(false)}
+            className="fixed inset-0 bg-black/50"
+            onClick={handleCloseSidebar}
           />
           <div className="relative z-10">
-            <Sidebar role={role} onClose={() => setSidebarOpen(false)} />
+            <Sidebar role={role} onClose={handleCloseSidebar} />
           </div>
         </div>
       )}
@@ -47,7 +50,7 @@ function AppShell({
       {/* Main */}
       <div className="flex flex-1 flex-col overflow-hidden">
         <TopNav
-          onMenuToggle={() => setSidebarOpen(true)}
+          onMenuToggle={handleOpenSidebar}
           notificationCount={notificationCount}
           onNotificationClick={onNotificationClick}
           userName={userName}

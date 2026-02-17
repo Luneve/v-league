@@ -1,86 +1,80 @@
-"use client";
-
-import { useState, useEffect } from "react";
-import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { Badge } from "@/components/ui/Badge";
 import { SurfaceCard } from "@/components/ui/SurfaceCard";
 import { Button } from "@/components/ui/Button";
-import { Skeleton } from "@/components/ui/Skeleton";
 import { APPLICATION_STATUS_BADGE } from "@/lib/constants";
 import { formatDate, formatRelativeTime } from "@/lib/utils";
-import { listMyApplications, getApplicationStatusHistory } from "@/lib/actions";
+import { createClient } from "@/lib/supabase/server";
 import { mapApplication } from "@/lib/mappers";
-import type { Application, ApplicationStatus } from "@/types";
+import type { ApplicationStatus } from "@/types";
 
-export default function ApplicationDetailPage() {
-  const params = useParams();
-  const router = useRouter();
-  const [application, setApplication] = useState<Application | null>(null);
-  const [loading, setLoading] = useState(true);
+const statusBannerColors: Record<string, string> = {
+  applied: "bg-info-light border-info/20 text-info",
+  waitlist: "bg-warning-light border-warning/20 text-warning",
+  accepted: "bg-success-light border-success/20 text-success",
+  rejected: "bg-danger-light border-danger/20 text-danger",
+  withdrawn: "bg-surface-2 border-border text-muted",
+  completed: "bg-success-light border-success/20 text-success",
+  no_show: "bg-danger-light border-danger/20 text-danger",
+};
 
-  useEffect(() => {
-    async function load() {
-      const id = params.id as string;
-      const [appsResult, historyResult] = await Promise.all([
-        listMyApplications(),
-        getApplicationStatusHistory(id),
-      ]);
+export default async function ApplicationDetailPage({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
+  const { id } = await params;
+  const supabase = await createClient();
 
-      if (appsResult.data) {
-        const apps = appsResult.data.map(mapApplication);
-        const found = apps.find((a) => a.id === id);
-        if (found) {
-          // Attach real status history
-          if (historyResult.data) {
-            found.statusHistory = historyResult.data.map((h: any) => ({
-              status: h.status as ApplicationStatus,
-              at: h.changed_at,
-            }));
-          }
-          setApplication(found);
-        }
-      }
-      setLoading(false);
-    }
-    load();
-  }, [params.id]);
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
 
-  if (loading) {
-    return (
-      <div className="flex flex-col gap-6 max-w-3xl">
-        <Skeleton className="h-8 w-48" />
-        <Skeleton className="h-16 w-full" />
-        <Skeleton className="h-32 w-full" />
-      </div>
-    );
+  if (!user) {
+    return <p className="text-muted">Not authenticated.</p>;
   }
 
-  if (!application) {
+  // Fetch specific application + status history in parallel (no more fetching ALL applications)
+  const [appResult, historyResult] = await Promise.all([
+    supabase
+      .from("applications")
+      .select(
+        "*, opportunities(id, title, description, category, city, start_date, end_date, start_time, end_time, planned_hours, points_reward, status, organization_id, organization_profiles(name, verified))"
+      )
+      .eq("id", id)
+      .eq("volunteer_id", user.id)
+      .single(),
+    supabase
+      .from("application_status_history")
+      .select("*")
+      .eq("application_id", id)
+      .order("changed_at", { ascending: true }),
+  ]);
+
+  if (!appResult.data) {
     return (
       <div className="flex items-center justify-center min-h-[50vh]">
         <div className="text-center">
           <h2 className="text-xl font-semibold text-text-primary mb-2">Application not found</h2>
-          <Button variant="outline" onClick={() => router.push("/applications")}>
-            Back to Applications
-          </Button>
+          <Link href="/applications">
+            <Button variant="outline">Back to Applications</Button>
+          </Link>
         </div>
       </div>
     );
   }
 
+  const application = mapApplication(appResult.data);
+
+  if (historyResult.data) {
+    application.statusHistory = historyResult.data.map((h: any) => ({
+      status: h.status as ApplicationStatus,
+      at: h.changed_at,
+    }));
+  }
+
   const statusCfg = APPLICATION_STATUS_BADGE[application.status];
   const opp = application.opportunity;
-
-  const statusBannerColors: Record<string, string> = {
-    applied: "bg-info-light border-info/20 text-info",
-    waitlist: "bg-warning-light border-warning/20 text-warning",
-    accepted: "bg-success-light border-success/20 text-success",
-    rejected: "bg-danger-light border-danger/20 text-danger",
-    withdrawn: "bg-surface-2 border-border text-muted",
-    completed: "bg-success-light border-success/20 text-success",
-    no_show: "bg-danger-light border-danger/20 text-danger",
-  };
 
   return (
     <div className="max-w-3xl">

@@ -6,9 +6,10 @@ export async function listNotifications(filters: {
   isRead?: boolean;
   cursor?: string; // created_at cursor for pagination
   pageSize?: number;
+  includeUnreadCount?: boolean;
 } = {}) {
   const supabase = await createClient();
-  const { pageSize = 20 } = filters;
+  const { pageSize = 20, includeUnreadCount = false } = filters;
 
   let query = supabase
     .from("notifications")
@@ -21,7 +22,22 @@ export async function listNotifications(filters: {
 
   const { data, error } = await query;
 
-  return { data, error: error?.message ?? null };
+  let unreadCount: number | null = null;
+  if (includeUnreadCount) {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (user) {
+      const { count } = await supabase
+        .from("notifications")
+        .select("id", { count: "exact", head: true })
+        .eq("user_id", user.id)
+        .eq("is_read", false);
+      unreadCount = count ?? 0;
+    }
+  }
+
+  return { data, error: error?.message ?? null, unreadCount };
 }
 
 export async function markNotificationRead(id: string) {
