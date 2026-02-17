@@ -30,8 +30,13 @@ yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
 
-# env files (can opt-in for committing if needed)
-.env*
+# env files (keep .env.example as template)
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+!.env.example
 
 # vercel
 .vercel
@@ -40,5 +45,21 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
-# MCP config (contains Supabase access token)
-.cursor/mcp.json
+# eslint
+.eslintcache
+
+# turbo / next cache
+.turbo
+
+# Supabase local (when using Supabase CLI)
+supabase/.branches
+supabase/.temp
+supabase/.logs
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# Cursor (local only)
+.cursor/

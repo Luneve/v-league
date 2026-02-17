@@ -1,36 +1,67 @@
-"use client";
+import { getSupabaseClient, getAuthUser } from "@/lib/supabase/user";
+import { mapOrganizationProfile, mapNotification } from "@/lib/mappers";
+import { OrgLayoutShell } from "./layout-client";
+import { perfRoute, perfStart, perfEnd, perfSummary } from "@/lib/perf/timing";
+import type { OrganizationProfile, Notification } from "@/types";
 
-import { AppShell } from "@/components/layout";
-import { mockCurrentOrg, mockNotifications } from "@/mocks";
-import { useState } from "react";
-import { Drawer } from "@/components/ui/Drawer";
-import { NotificationList } from "@/components/shared/NotificationList";
-import { OrgUnverifiedLock } from "@/components/shared/OrgUnverifiedLock";
-
-export default function OrgLayout({
+export default async function OrgLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  const [notifOpen, setNotifOpen] = useState(false);
-  const unreadCount = mockNotifications.filter((n) => !n.read).length;
+  perfRoute("/org/layout");
+  perfStart("auth");
+  const [supabase, user] = await Promise.all([
+    getSupabaseClient(),
+    getAuthUser(),
+  ]);
+  perfEnd("auth");
+
+  let orgProfile: OrganizationProfile | null = null;
+  let notifications: Notification[] = [];
+  let unreadCount = 0;
+
+  if (user) {
+    perfStart("layout-queries");
+    const [profileResult, notifResult, unreadResult] = await Promise.all([
+      supabase
+        .from("organization_profiles")
+        .select("*")
+        .eq("id", user.id)
+        .single(),
+      supabase
+        .from("notifications")
+        .select("*")
+        .order("created_at", { ascending: false })
+        .limit(20),
+      supabase
+        .from("notifications")
+        .select("id", { count: "exact", head: true })
+        .eq("user_id", user.id)
+        .eq("is_read", false),
+    ]);
+    perfEnd("layout-queries");
+
+    if (profileResult.data) {
+      orgProfile = mapOrganizationProfile(profileResult.data);
+    }
+
+    if (notifResult.data) {
+      notifications = notifResult.data.map(mapNotification);
+    }
+
+    unreadCount = unreadResult.count ?? 0;
+  }
+
+  perfSummary();
 
   return (
-    <AppShell
-      role="organization"
-      userName={mockCurrentOrg.name}
-      userInitials={mockCurrentOrg.name.charAt(0)}
-      notificationCount={unreadCount}
-      onNotificationClick={() => setNotifOpen(true)}
+    <OrgLayoutShell
+      orgProfile={orgProfile}
+      initialNotifications={notifications}
+      initialUnreadCount={unreadCount}
     >
-      {!mockCurrentOrg.verified ? <OrgUnverifiedLock /> : children}
-      <Drawer
-        open={notifOpen}
-        onClose={() => setNotifOpen(false)}
-        title="Notifications"
-      >
-        <NotificationList notifications={mockNotifications} />
-      </Drawer>
-    </AppShell>
+      {children}
+    </OrgLayoutShell>
   );
 }

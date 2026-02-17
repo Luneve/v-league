@@ -1,17 +1,20 @@
-"use client";
-
-import { mockAuditLog } from "@/mocks";
 import { SurfaceCard } from "@/components/ui/SurfaceCard";
 import { Badge } from "@/components/ui/Badge";
 import { formatRelativeTime } from "@/lib/utils";
+import { getAuditLogs } from "@/lib/actions";
+import { mapAuditLogEntry } from "@/lib/mappers";
+import type { BadgeVariant } from "@/components/ui/Badge";
 
-const roleBadge: Record<string, string> = {
+const roleBadge: Record<string, BadgeVariant> = {
   volunteer: "info",
   organization: "default",
   admin: "warning",
 };
 
-export default function AuditLogPage() {
+export default async function AuditLogPage() {
+  const { data } = await getAuditLogs({ pageSize: 50 });
+  const entries = data ? data.map(mapAuditLogEntry) : [];
+
   return (
     <div>
       <h1 className="text-2xl font-bold text-text-primary mb-6">Audit Log</h1>
@@ -28,12 +31,12 @@ export default function AuditLogPage() {
             </tr>
           </thead>
           <tbody>
-            {mockAuditLog.map((entry) => (
+            {entries.map((entry) => (
               <tr key={entry.id} className="border-b border-border hover:bg-surface-2/30 transition-colors">
                 <td className="px-4 py-3">
                   <div className="flex items-center gap-2">
                     <span className="font-medium text-text-primary">{entry.actor.name}</span>
-                    <Badge variant={roleBadge[entry.actor.role] as any || "muted"} size="sm">{entry.actor.role}</Badge>
+                    <Badge variant={roleBadge[entry.actor.role] || "muted"} size="sm">{entry.actor.role}</Badge>
                   </div>
                 </td>
                 <td className="px-4 py-3 text-text-primary font-mono text-xs">{entry.action}</td>
@@ -46,7 +49,7 @@ export default function AuditLogPage() {
         </table>
       </SurfaceCard>
 
-      {mockAuditLog.length === 0 && (
+      {entries.length === 0 && (
         <div className="text-center py-12">
           <p className="text-sm text-muted">No activity logged yet.</p>
         </div>

@@ -51,12 +51,12 @@ function Drawer({
         if (e.target === overlayRef.current) onClose();
       }}
     >
-      <div className="fixed inset-0 bg-black/50 backdrop-blur-sm" />
+      <div className="fixed inset-0 bg-black/50 backdrop-blur-sm" style={{ willChange: "opacity" }} />
       <div
         role="dialog"
         aria-modal="true"
         aria-label={title}
-        style={{ width }}
+        style={{ width, willChange: "transform" }}
         className={`
           relative z-10 flex h-full flex-col
           border-border bg-surface shadow-[var(--shadow-lg)]

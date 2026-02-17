@@ -7,6 +7,7 @@ import { SurfaceCard } from "@/components/ui/SurfaceCard";
 import { Input } from "@/components/ui/Input";
 import { Button } from "@/components/ui/Button";
 import { useToast } from "@/components/ui/Toast";
+import { signIn, signInWithGoogle } from "@/lib/actions/auth";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -14,9 +15,10 @@ export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
   const [errors, setErrors] = useState<{ email?: string; password?: string }>({});
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const newErrors: typeof errors = {};
     if (!email) newErrors.email = "Email is required.";
@@ -28,12 +30,34 @@ export default function LoginPage() {
     setErrors({});
     setLoading(true);
 
-    // Mock login
-    setTimeout(() => {
-      setLoading(false);
+    try {
+      const result = await signIn(email, password);
+      if (result.error) {
+        toast("error", result.error);
+        setLoading(false);
+        return;
+      }
       toast("success", "Signed in successfully!");
       router.push("/feed");
-    }, 1000);
+      router.refresh();
+    } catch {
+      toast("error", "Something went wrong. Please try again.");
+      setLoading(false);
+    }
+  };
+
+  const handleGoogleSignIn = async () => {
+    setGoogleLoading(true);
+    try {
+      const result = await signInWithGoogle();
+      if (result?.error) {
+        toast("error", result.error);
+        setGoogleLoading(false);
+      }
+    } catch {
+      // redirect throws an error in Next.js, which is expected
+      setGoogleLoading(false);
+    }
   };
 
   return (
@@ -101,9 +125,8 @@ export default function LoginPage() {
               />
             </svg>
           }
-          onClick={() => {
-            toast("info", "Google sign-in will be connected to Supabase Auth.");
-          }}
+          onClick={handleGoogleSignIn}
+          loading={googleLoading}
         >
           Continue with Google
         </Button>

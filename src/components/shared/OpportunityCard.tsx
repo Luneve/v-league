@@ -1,19 +1,22 @@
 "use client";
 
 import Link from "next/link";
-import type { Opportunity } from "@/types";
+import type { Opportunity, ApplicationStatus } from "@/types";
 import { Badge } from "@/components/ui/Badge";
 import { SurfaceCard } from "@/components/ui/SurfaceCard";
-import { OPPORTUNITY_STATUS_BADGE } from "@/lib/constants";
+import { OPPORTUNITY_STATUS_BADGE, APPLICATION_STATUS_BADGE } from "@/lib/constants";
 import { daysUntil } from "@/lib/utils";
 
 interface OpportunityCardProps {
   opportunity: Opportunity;
-  hasConflict?: boolean;
+  applicationStatus?: ApplicationStatus;
 }
 
-function OpportunityCard({ opportunity, hasConflict = false }: OpportunityCardProps) {
-  const statusConfig = OPPORTUNITY_STATUS_BADGE[opportunity.status];
+function OpportunityCard({ opportunity, applicationStatus }: OpportunityCardProps) {
+  // Use application status if available, otherwise use opportunity status
+  const statusConfig = applicationStatus 
+    ? APPLICATION_STATUS_BADGE[applicationStatus]
+    : OPPORTUNITY_STATUS_BADGE[opportunity.status];
   const deadlineDays = daysUntil(opportunity.applyDeadline);
   const spotsLeft = opportunity.capacity - opportunity.currentApplicants;
 
@@ -22,7 +25,6 @@ function OpportunityCard({ opportunity, hasConflict = false }: OpportunityCardPr
       spotlight
       hover
       padding="md"
-      className={hasConflict ? "border-warning/50" : ""}
     >
       <Link href={`/opportunity/${opportunity.id}`} className="block">
         <div className="flex items-center justify-between mb-3">
@@ -57,13 +59,9 @@ function OpportunityCard({ opportunity, hasConflict = false }: OpportunityCardPr
             </span>
           </div>
           <div className="text-right">
-            {hasConflict && (
-              <Badge variant="warning" size="sm">Conflict</Badge>
-            )}
-            {!hasConflict && deadlineDays > 0 && (
+            {deadlineDays > 0 ? (
               <span className="text-xs text-muted">{deadlineDays}d left</span>
-            )}
-            {!hasConflict && deadlineDays <= 0 && (
+            ) : (
               <span className="text-xs text-danger">Deadline passed</span>
             )}
           </div>

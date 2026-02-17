@@ -1,5 +1,6 @@
 "use client";
 
+import { memo } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { Role } from "@/types";
@@ -140,7 +141,7 @@ interface SidebarProps {
   onClose?: () => void;
 }
 
-function Sidebar({ role, collapsed = false, onClose }: SidebarProps) {
+const Sidebar = memo(function Sidebar({ role, collapsed = false, onClose }: SidebarProps) {
   const pathname = usePathname();
   const items = navMap[role];
 
@@ -200,7 +201,7 @@ function Sidebar({ role, collapsed = false, onClose }: SidebarProps) {
       </nav>
     </aside>
   );
-}
+});
 
 export { Sidebar };
 export type { SidebarProps };

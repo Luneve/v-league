@@ -1,35 +1,48 @@
-"use client";
+import { getSupabaseClient, getAuthUser } from "@/lib/supabase/user";
+import { mapNotification } from "@/lib/mappers";
+import { AdminLayoutShell } from "./layout-client";
+import type { Notification } from "@/types";
 
-import { AppShell } from "@/components/layout";
-import { mockNotifications } from "@/mocks";
-import { useState } from "react";
-import { Drawer } from "@/components/ui/Drawer";
-import { NotificationList } from "@/components/shared/NotificationList";
-
-export default function AdminLayout({
+export default async function AdminLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  const [notifOpen, setNotifOpen] = useState(false);
-  const unreadCount = mockNotifications.filter((n) => !n.read).length;
+  const [supabase, user] = await Promise.all([
+    getSupabaseClient(),
+    getAuthUser(),
+  ]);
+
+  let notifications: Notification[] = [];
+  let unreadCount = 0;
+
+  if (user) {
+    const [notifResult, unreadResult] = await Promise.all([
+      supabase
+        .from("notifications")
+        .select("*")
+        .order("created_at", { ascending: false })
+        .limit(20),
+      supabase
+        .from("notifications")
+        .select("id", { count: "exact", head: true })
+        .eq("user_id", user.id)
+        .eq("is_read", false),
+    ]);
+
+    if (notifResult.data) {
+      notifications = notifResult.data.map(mapNotification);
+    }
+
+    unreadCount = unreadResult.count ?? 0;
+  }
 
   return (
-    <AppShell
-      role="admin"
-      userName="Admin"
-      userInitials="A"
-      notificationCount={unreadCount}
-      onNotificationClick={() => setNotifOpen(true)}
+    <AdminLayoutShell
+      initialNotifications={notifications}
+      initialUnreadCount={unreadCount}
     >
       {children}
-      <Drawer
-        open={notifOpen}
-        onClose={() => setNotifOpen(false)}
-        title="Notifications"
-      >
-        <NotificationList notifications={mockNotifications} />
-      </Drawer>
-    </AppShell>
+    </AdminLayoutShell>
   );
 }

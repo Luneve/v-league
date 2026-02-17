@@ -1,24 +1,51 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { mockOrganizations } from "@/mocks";
 import { SurfaceCard } from "@/components/ui/SurfaceCard";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Modal } from "@/components/ui/Modal";
 import { Textarea } from "@/components/ui/Textarea";
+import { Skeleton } from "@/components/ui/Skeleton";
 import { useToast } from "@/components/ui/Toast";
+import { listOrganizations, verifyOrganization, unverifyOrganization } from "@/lib/actions";
+import { mapOrganizationProfile } from "@/lib/mappers";
+import type { OrganizationProfile } from "@/types";
 
 export default function AdminOrgDetailPage() {
   const params = useParams();
   const router = useRouter();
   const { toast } = useToast();
 
-  const org = mockOrganizations.find((o) => o.id === params.id);
+  const [org, setOrg] = useState<OrganizationProfile | null>(null);
+  const [loading, setLoading] = useState(true);
   const [approveModal, setApproveModal] = useState(false);
   const [rejectModal, setRejectModal] = useState(false);
   const [rejectReason, setRejectReason] = useState("");
+  const [actionLoading, setActionLoading] = useState(false);
+
+  useEffect(() => {
+    async function load() {
+      // Fetch all orgs and find by ID
+      const { data } = await listOrganizations();
+      if (data) {
+        const found = data.map(mapOrganizationProfile).find((o) => o.id === params.id);
+        setOrg(found ?? null);
+      }
+      setLoading(false);
+    }
+    load();
+  }, [params.id]);
+
+  if (loading) {
+    return (
+      <div className="flex flex-col gap-6 max-w-2xl">
+        <Skeleton className="h-8 w-48" />
+        <Skeleton className="h-48 w-full" />
+      </div>
+    );
+  }
 
   if (!org) {
     return (
@@ -31,22 +58,36 @@ export default function AdminOrgDetailPage() {
     );
   }
 
-  const handleApprove = () => {
-    toast("success", `${org.name} has been approved as a verified organization.`);
-    setApproveModal(false);
-    router.push("/admin/organizations");
+  const handleApprove = async () => {
+    setActionLoading(true);
+    const { error } = await verifyOrganization(org.id);
+    setActionLoading(false);
+    if (error) {
+      toast("error", error);
+    } else {
+      toast("success", `${org.name} has been approved as a verified organization.`);
+      setApproveModal(false);
+      router.push("/admin/organizations");
+    }
   };
 
-  const handleReject = () => {
-    toast("warning", `${org.name} has been rejected.`);
-    setRejectModal(false);
-    router.push("/admin/organizations");
+  const handleReject = async () => {
+    setActionLoading(true);
+    const { error } = await unverifyOrganization(org.id);
+    setActionLoading(false);
+    if (error) {
+      toast("error", error);
+    } else {
+      toast("warning", `${org.name} has been rejected.`);
+      setRejectModal(false);
+      router.push("/admin/organizations");
+    }
   };
 
   return (
     <div className="max-w-2xl">
       <Button variant="ghost" size="sm" className="mb-4" onClick={() => router.push("/admin/organizations")}>
-        ← Back to Queue
+        &larr; Back to Queue
       </Button>
 
       <div className="flex items-center gap-3 mb-6">
@@ -126,7 +167,7 @@ export default function AdminOrgDetailPage() {
         footer={
           <>
             <Button variant="ghost" onClick={() => setApproveModal(false)}>Cancel</Button>
-            <Button variant="primary" onClick={handleApprove}>Approve</Button>
+            <Button variant="primary" loading={actionLoading} onClick={handleApprove}>Approve</Button>
           </>
         }
       >
@@ -144,7 +185,7 @@ export default function AdminOrgDetailPage() {
         footer={
           <>
             <Button variant="ghost" onClick={() => setRejectModal(false)}>Cancel</Button>
-            <Button variant="danger" onClick={handleReject}>Reject</Button>
+            <Button variant="danger" loading={actionLoading} onClick={handleReject}>Reject</Button>
           </>
         }
       >
