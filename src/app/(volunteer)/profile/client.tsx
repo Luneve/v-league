@@ -170,11 +170,6 @@ export function ProfileClient({
                 label="Lifetime Hours"
                 value={`${vol.lifetimeHours}h`}
               />
-              <StatCard
-                label="Strikes"
-                value={String(vol.strikes)}
-                danger={vol.strikes > 0}
-              />
             </div>
           </SurfaceCard>
         </div>

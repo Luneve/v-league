@@ -3,7 +3,7 @@ import { Badge } from "@/components/ui/Badge";
 import { SurfaceCard } from "@/components/ui/SurfaceCard";
 import { Button } from "@/components/ui/Button";
 import { APPLICATION_STATUS_BADGE } from "@/lib/constants";
-import { formatDate, formatTime, formatRelativeTime } from "@/lib/utils";
+import { formatDate, formatTime, formatTzDate, formatTzTime, formatRelativeTime } from "@/lib/utils";
 import { getSupabaseClient, getAuthUser } from "@/lib/supabase/user";
 import { mapApplication } from "@/lib/mappers";
 import type { ApplicationStatus } from "@/types";
@@ -38,7 +38,7 @@ export default async function ApplicationDetailPage({
     supabase
       .from("applications")
       .select(
-        "*, opportunities(id, title, description, category, city, start_date, end_date, start_time, end_time, planned_hours, points_reward, status, organization_id, organization_profiles(name, verified))"
+        "*, opportunities(id, title, description, category, city, start_date, end_date, start_time, end_time, start_at, end_at, apply_deadline_at, planned_hours, points_reward, status, organization_id, organization_profiles(name, verified))"
       )
       .eq("id", id)
       .eq("volunteer_id", user.id)
@@ -91,11 +91,11 @@ export default async function ApplicationDetailPage({
         </p>
       </div>
 
-      {/* Penalty/strike banner for no_show */}
+      {/* Penalty banner for no_show */}
       {application.status === "no_show" && (
         <div className="mb-6 rounded-xl bg-danger-light border border-danger/20 p-4">
           <p className="text-sm font-medium text-danger">
-            You were marked as a no-show. {application.penaltyApplied && `A penalty of ${application.penaltyApplied} points was applied.`} A strike has been recorded.
+            You were marked as a no-show.{application.penaltyApplied ? ` A penalty of ${application.penaltyApplied} points was applied.` : ""}
           </p>
         </div>
       )}
@@ -118,7 +118,7 @@ export default async function ApplicationDetailPage({
           <h2 className="text-lg font-semibold text-text-primary">{opp.title}</h2>
           <p className="text-sm text-muted mt-1">{opp.organizationName} · {opp.city}</p>
           <p className="text-xs text-muted mt-1">
-            {formatDate(opp.startDate)} · {formatTime(opp.startTime)}–{formatTime(opp.endTime)} · {opp.pointsReward} pts
+            {opp.startAt ? formatTzDate(opp.startAt) : formatDate(opp.startDate)} · {opp.startAt && opp.endAt ? `${formatTzTime(opp.startAt)}–${formatTzTime(opp.endAt)}` : `${formatTime(opp.startTime)}–${formatTime(opp.endTime)}`} · {opp.pointsReward} pts
           </p>
         </Link>
       </SurfaceCard>

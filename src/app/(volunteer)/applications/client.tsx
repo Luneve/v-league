@@ -10,7 +10,7 @@ import { Modal } from "@/components/ui/Modal";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { useToast } from "@/components/ui/Toast";
 import { APPLICATION_STATUS_BADGE } from "@/lib/constants";
-import { formatDate, formatTime, getWithdrawalPenalty } from "@/lib/utils";
+import { formatDate, formatTime, formatTzDate, formatTzTime, getWithdrawalPenalty } from "@/lib/utils";
 import { listMyApplications, withdrawApplication } from "@/lib/actions";
 import { mapApplication } from "@/lib/mappers";
 import type { Application, ApplicationStatus } from "@/types";
@@ -43,7 +43,7 @@ export function ApplicationsClient({ initialApplications }: ApplicationsClientPr
 
   const withdrawApp = applications.find((a) => a.id === withdrawModal);
   const withdrawPenalty = withdrawApp
-    ? getWithdrawalPenalty(withdrawApp.opportunity.startDate, withdrawApp.opportunity.startTime)
+    ? getWithdrawalPenalty(withdrawApp.opportunity.startAt, withdrawApp.opportunity.startDate, withdrawApp.opportunity.startTime)
     : null;
 
   const canWithdraw = (status: ApplicationStatus) =>
@@ -106,7 +106,7 @@ export function ApplicationsClient({ initialApplications }: ApplicationsClientPr
                       {app.opportunity.organizationName} · {app.opportunity.city}
                     </p>
                     <p className="text-xs text-muted mt-1">
-                      {formatDate(app.opportunity.startDate)} · {formatTime(app.opportunity.startTime)}–{formatTime(app.opportunity.endTime)} · {app.opportunity.pointsReward} pts
+                      {app.opportunity.startAt ? formatTzDate(app.opportunity.startAt) : formatDate(app.opportunity.startDate)} · {app.opportunity.startAt && app.opportunity.endAt ? `${formatTzTime(app.opportunity.startAt)}–${formatTzTime(app.opportunity.endAt)}` : `${formatTime(app.opportunity.startTime)}–${formatTime(app.opportunity.endTime)}`} · {app.opportunity.pointsReward} pts
                     </p>
                   </div>
 

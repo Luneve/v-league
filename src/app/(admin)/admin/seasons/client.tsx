@@ -6,13 +6,10 @@ import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Select } from "@/components/ui/Select";
 import { useToast } from "@/components/ui/Toast";
-import { formatDate } from "@/lib/utils";
+import { formatDate, formatTzDate } from "@/lib/utils";
 import { listSeasons, createSeason } from "@/lib/actions";
 import { mapSeason } from "@/lib/mappers";
 import type { Season } from "@/types";
-import type { Database } from "@/types/supabase";
-
-type SeasonDuration = Database["public"]["Enums"]["season_duration"];
 
 interface SeasonsClientProps {
   initialSeasons: Season[];
@@ -33,8 +30,7 @@ export function SeasonsClient({ initialSeasons }: SeasonsClientProps) {
 
   const handleCreate = async () => {
     setCreating(true);
-    const startDate = new Date().toISOString().split("T")[0];
-    const { error } = await createSeason(startDate, duration as SeasonDuration);
+    const { error } = await createSeason(Number(duration));
     setCreating(false);
     if (error) {
       toast("error", error);
@@ -63,8 +59,8 @@ export function SeasonsClient({ initialSeasons }: SeasonsClientProps) {
                 <div>
                   <div className="flex items-center gap-2 mb-1">
                     <h3 className="text-base font-semibold text-text-primary">
-                      {formatDate(season.startDate)} —{" "}
-                      {formatDate(season.endDate)}
+                      {season.startAt ? formatTzDate(season.startAt) : formatDate(season.startDate)} —{" "}
+                      {season.endAt ? formatTzDate(season.endAt) : formatDate(season.endDate)}
                     </h3>
                     {season.active && (
                       <Badge variant="success" size="sm">
@@ -83,7 +79,7 @@ export function SeasonsClient({ initialSeasons }: SeasonsClientProps) {
       {/* Create New Season */}
       <SurfaceCard padding="md">
         <h2 className="text-lg font-semibold text-text-primary mb-4">
-          Schedule Next Season
+          Start New Season
         </h2>
         <div className="flex items-end gap-4">
           <div className="min-w-[200px]">
@@ -100,7 +96,7 @@ export function SeasonsClient({ initialSeasons }: SeasonsClientProps) {
             />
           </div>
           <Button variant="primary" onClick={handleCreate} loading={creating}>
-            Schedule Season
+            Start Season
           </Button>
         </div>
       </SurfaceCard>

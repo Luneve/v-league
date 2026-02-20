@@ -9,20 +9,8 @@ import type { FilterConfig } from "@/components/ui/FilterBar";
 import type { Opportunity, Application } from "@/types";
 
 const filters: FilterConfig[] = [
-  {
-    key: "city",
-    label: "City",
-    type: "select",
-    options: CITIES.map((c) => ({ value: c, label: c })),
-    placeholder: "All cities",
-  },
-  {
-    key: "category",
-    label: "Category",
-    type: "select",
-    options: CATEGORIES.map((c) => ({ value: c, label: c })),
-    placeholder: "All categories",
-  },
+  { key: "city", label: "City", type: "select", options: CITIES.map((c) => ({ value: c, label: c })), placeholder: "All cities" },
+  { key: "category", label: "Category", type: "select", options: CATEGORIES.map((c) => ({ value: c, label: c })), placeholder: "All categories" },
   {
     key: "availableWithin",
     label: "Available within",
@@ -36,33 +24,21 @@ const filters: FilterConfig[] = [
     ],
     placeholder: "Any time",
   },
-  {
-    key: "organization",
-    label: "Organization",
-    type: "text",
-    placeholder: "Search org...",
-  },
-  {
-    key: "points",
-    label: "Points",
-    type: "range",
-    rangeKeys: ["minPoints", "maxPoints"],
-    min: 0,
-    max: 200,
-    step: 5,
-    unit: " pts",
-  },
+  { key: "organization", label: "Organization", type: "text", placeholder: "Search org..." },
+  { key: "points", label: "Points", type: "range", rangeKeys: ["minPoints", "maxPoints"], min: 0, max: 200, step: 5, unit: " pts" },
 ];
 
 interface FeedClientProps {
   initialOpportunities: Opportunity[];
   initialApplications: Application[];
+  canApplyMap: Record<string, { canApply: boolean; reason: string | null }>;
   defaultCity: string;
 }
 
 export function FeedClient({
   initialOpportunities,
   initialApplications,
+  canApplyMap,
   defaultCity,
 }: FeedClientProps) {
   const [filterValues, setFilterValues] = useState<Record<string, string>>({
@@ -93,71 +69,32 @@ export function FeedClient({
     return initialOpportunities.filter((opp) => {
       if (opp.status === "draft") return false;
       if (filterValues.city && opp.city !== filterValues.city) return false;
-      if (filterValues.category && opp.category !== filterValues.category)
-        return false;
+      if (filterValues.category && opp.category !== filterValues.category) return false;
       if (filterValues.availableWithin) {
         const cutoff = new Date();
-        cutoff.setDate(
-          cutoff.getDate() + Number(filterValues.availableWithin)
-        );
-        if (new Date(opp.startDate) > cutoff) return false;
+        cutoff.setDate(cutoff.getDate() + Number(filterValues.availableWithin));
+        if (opp.startAt ? new Date(opp.startAt) > cutoff : new Date(opp.startDate) > cutoff) return false;
       }
-      if (
-        filterValues.organization &&
-        !opp.organizationName
-          .toLowerCase()
-          .includes(filterValues.organization.toLowerCase())
-      )
-        return false;
-      if (
-        filterValues.minPoints &&
-        opp.pointsReward < Number(filterValues.minPoints)
-      )
-        return false;
-      if (
-        filterValues.maxPoints &&
-        opp.pointsReward > Number(filterValues.maxPoints)
-      )
-        return false;
+      if (filterValues.organization && !opp.organizationName.toLowerCase().includes(filterValues.organization.toLowerCase())) return false;
+      if (filterValues.minPoints && opp.pointsReward < Number(filterValues.minPoints)) return false;
+      if (filterValues.maxPoints && opp.pointsReward > Number(filterValues.maxPoints)) return false;
       return true;
     });
   }, [initialOpportunities, filterValues]);
 
   const applicationStatusMap = useMemo(() => {
     const map: Record<string, Application["status"]> = {};
-    for (const app of initialApplications) {
-      map[app.opportunityId] = app.status;
-    }
+    for (const app of initialApplications) map[app.opportunityId] = app.status;
     return map;
   }, [initialApplications]);
 
   return (
     <div>
-      <FilterBar
-        filters={filters}
-        values={filterValues}
-        onChange={handleFilterChange}
-        onClear={handleClearFilters}
-        className="mb-6"
-      />
+      <FilterBar filters={filters} values={filterValues} onChange={handleFilterChange} onClear={handleClearFilters} className="mb-6" />
 
       {filteredOpportunities.length === 0 ? (
         <EmptyState
-          icon={
-            <svg
-              className="h-8 w-8"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-              strokeWidth={1.5}
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z"
-              />
-            </svg>
-          }
+          icon={<svg className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" /></svg>}
           title="No opportunities found"
           description="No opportunities match your filters. Try adjusting them or clearing all filters."
           action={{ label: "Clear filters", onClick: handleClearFilters }}
@@ -169,6 +106,8 @@ export function FeedClient({
               key={opp.id}
               opportunity={opp}
               applicationStatus={applicationStatusMap[opp.id]}
+              canApply={canApplyMap[opp.id]?.canApply ?? false}
+              cannotApplyReason={canApplyMap[opp.id]?.reason ?? null}
             />
           ))}
         </div>

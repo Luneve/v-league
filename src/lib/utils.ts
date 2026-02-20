@@ -19,6 +19,54 @@ export function formatDate(dateStr: string): string {
 }
 
 /**
+ * Format timestamptz in Asia/Qyzylorda for display.
+ */
+export function formatTz(ts: string | null | undefined): string {
+  if (!ts) return "";
+  return new Date(ts).toLocaleString("en-US", {
+    timeZone: "Asia/Qyzylorda",
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+/**
+ * Format date part of timestamptz in Asia/Qyzylorda.
+ */
+export function formatTzDate(ts: string | null | undefined): string {
+  if (!ts) return "";
+  return new Date(ts).toLocaleDateString("en-US", {
+    timeZone: "Asia/Qyzylorda",
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+}
+
+/**
+ * Format time part of timestamptz in Asia/Qyzylorda.
+ */
+export function formatTzTime(ts: string | null | undefined): string {
+  if (!ts) return "";
+  return new Date(ts).toLocaleTimeString("en-US", {
+    timeZone: "Asia/Qyzylorda",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+/**
+ * Check if now >= apply_deadline_at (deadline passed).
+ */
+export function isDeadlinePassed(applyDeadlineAt: string | null | undefined): boolean {
+  if (!applyDeadlineAt) return true;
+  return new Date() >= new Date(applyDeadlineAt);
+}
+
+/**
  * Format a datetime string to relative time ("2 hours ago", "3 days ago").
  */
 export function formatRelativeTime(dateStr: string): string {
@@ -37,11 +85,12 @@ export function formatRelativeTime(dateStr: string): string {
 }
 
 /**
- * Calculate days until a deadline.
+ * Calculate days until a deadline (uses timestamptz).
  */
-export function daysUntil(dateStr: string): number {
+export function daysUntil(ts: string | null | undefined): number {
+  if (!ts) return -1;
   const now = new Date();
-  const target = new Date(dateStr);
+  const target = new Date(ts);
   const diff = target.getTime() - now.getTime();
   return Math.ceil(diff / 86400000);
 }
@@ -54,14 +103,19 @@ export function getInitials(firstName: string, lastName: string): string {
 }
 
 /**
- * Calculate withdrawal penalty tier based on hours until start.
+ * Calculate withdrawal penalty tier (uses startAt timestamptz or date+time fallback).
  */
-export function getWithdrawalPenalty(startDate: string, startTime: string): {
+export function getWithdrawalPenalty(startAt?: string, startDate?: string, startTime?: string): {
   penalty: number;
   tier: "none" | "low" | "high";
   message: string;
 } {
-  const startDateTime = new Date(`${startDate}T${startTime}`);
+  const startDateTime = startAt
+    ? new Date(startAt)
+    : startDate && startTime
+      ? new Date(`${startDate}T${startTime}`)
+      : null;
+  if (!startDateTime) return { penalty: 0, tier: "none", message: "Unable to determine event start." };
   const now = new Date();
   const hoursUntilStart = (startDateTime.getTime() - now.getTime()) / 3600000;
 

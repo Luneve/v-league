@@ -20,20 +20,10 @@ export default async function CandidatesPage({ params }: Props) {
   // Fetch opportunity (with org profile + applicant count) and candidates in parallel
   const [oppResult, candResult] = await Promise.all([
     supabase
-      .from("opportunities")
-      .select("*, organization_profiles(name, verified)")
+      .from("opportunities_with_counts")
+      .select("*")
       .eq("id", id)
-      .single()
-      .then(async (res) => {
-        if (res.error || !res.data) return { data: null, error: res.error };
-        // Count active applicants
-        const { count } = await supabase
-          .from("applications")
-          .select("id", { count: "exact", head: true })
-          .eq("opportunity_id", id)
-          .not("status", "in", '("rejected","withdrawn")');
-        return { data: { ...res.data, current_applicants: count ?? 0 }, error: null };
-      }),
+      .single(),
     supabase
       .from("applications")
       .select(

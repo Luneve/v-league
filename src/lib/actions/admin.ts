@@ -3,8 +3,6 @@
 import { createClient } from "@/lib/supabase/server";
 import type { Database } from "@/types/supabase";
 
-type SeasonDuration = Database["public"]["Enums"]["season_duration"];
-
 // ============ Org Verification ============
 
 export async function verifyOrganization(orgId: string) {
@@ -82,24 +80,10 @@ export async function listUsers(filters: {
 
 // ============ Seasons ============
 
-export async function createSeason(startDate: string, durationDays: SeasonDuration = "90") {
-  const supabase = await createClient();
+import * as seasonService from "@/services/seasons";
 
-  const { data, error } = await supabase.rpc("fn_create_season", {
-    p_start_date: startDate,
-    p_duration_days: durationDays,
-  });
-
-  return { data, error: error?.message ?? null };
-}
-
-export async function triggerSeasonRollover() {
-  const supabase = await createClient();
-
-  const { error } = await supabase.rpc("fn_run_season_rollover");
-
-  return { error: error?.message ?? null };
-}
+export const createSeason = seasonService.startSeason;
+export const triggerSeasonRollover = seasonService.runSeasonRollover;
 
 // ============ Audit Logs ============
 

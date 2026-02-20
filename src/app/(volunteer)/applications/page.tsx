@@ -15,7 +15,7 @@ export default async function ApplicationsPage() {
   const { data } = await supabase
     .from("applications")
     .select(
-      "*, opportunities(id, title, description, category, city, start_date, end_date, start_time, end_time, planned_hours, points_reward, status, organization_id, organization_profiles(name, verified))"
+      "*, opportunities(id, title, description, category, city, start_date, end_date, start_time, end_time, start_at, end_at, apply_deadline_at, planned_hours, points_reward, status, organization_id, organization_profiles(name, verified))"
     )
     .eq("volunteer_id", user.id)
     .order("applied_at", { ascending: false });

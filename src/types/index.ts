@@ -32,7 +32,6 @@ export interface VolunteerProfile {
   league: League;
   seasonPoints: number;
   lifetimeHours: number;
-  strikes: number;
   avatarUrl?: string;
 }
 
@@ -66,13 +65,20 @@ export interface Opportunity {
   endDate: string;
   startTime: string;
   endTime: string;
+  startAt: string;
+  endAt: string;
+  applyDeadlineAt: string;
   plannedHours: number;
   capacity: number;
   currentApplicants: number;
+  /** Count of applications with status=accepted (unmarked). Must be 0 to complete opportunity. */
+  acceptedCount?: number;
   ageRestriction?: number;
   contacts: { telegram?: string; phone?: string };
   pointsReward: number;
   status: OpportunityStatus;
+  /** Actual DB status; use for org status transitions. When absent, use status. */
+  actualStatus?: OpportunityStatus;
 }
 
 // ===== Applications =====
@@ -99,8 +105,7 @@ export type NotificationType =
   | "update"
   | "cancellation"
   | "completion"
-  | "penalty"
-  | "strike";
+  | "penalty";
 
 export interface Notification {
   id: string;
@@ -127,20 +132,20 @@ export interface Season {
   id: string;
   startDate: string;
   endDate: string;
+  startAt: string;
+  endAt: string;
   durationDays: 30 | 60 | 90 | 120;
   active: boolean;
 }
 
-export interface MiniGroup {
-  id: string;
+// ===== Leaderboard Entry =====
+export interface LeaderboardEntry {
+  volunteerId: string;
+  name: string;
   league: League;
-  seasonId: string;
-  members: {
-    volunteerId: string;
-    name: string;
-    points: number;
-    rank: number;
-  }[];
+  seasonPoints: number;
+  lifetimeHours: number;
+  rank: number;
 }
 
 // ===== Completed History Entry =====

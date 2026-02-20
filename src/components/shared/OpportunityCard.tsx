@@ -5,36 +5,45 @@ import type { Opportunity, ApplicationStatus } from "@/types";
 import { Badge } from "@/components/ui/Badge";
 import { SurfaceCard } from "@/components/ui/SurfaceCard";
 import { OPPORTUNITY_STATUS_BADGE, APPLICATION_STATUS_BADGE } from "@/lib/constants";
-import { daysUntil } from "@/lib/utils";
+import { daysUntil, isDeadlinePassed, formatTzDate, formatDate } from "@/lib/utils";
+
+function reasonToLabel(reason: string | null): string {
+  if (!reason) return "Closed";
+  const map: Record<string, string> = {
+    not_open: "Closed",
+    past_deadline: "Deadline passed",
+    capacity_full: "Full",
+    already_applied: "Applied",
+    opportunity_cancelled: "Cancelled",
+    opportunity_closed: "Closed",
+  };
+  return map[reason] ?? "Closed";
+}
 
 interface OpportunityCardProps {
   opportunity: Opportunity;
   applicationStatus?: ApplicationStatus;
+  canApply?: boolean;
+  cannotApplyReason?: string | null;
 }
 
-function OpportunityCard({ opportunity, applicationStatus }: OpportunityCardProps) {
-  // Use application status if available, otherwise use opportunity status
-  const statusConfig = applicationStatus 
+function OpportunityCard({ opportunity, applicationStatus, canApply = false, cannotApplyReason = null }: OpportunityCardProps) {
+  const statusConfig = applicationStatus
     ? APPLICATION_STATUS_BADGE[applicationStatus]
     : OPPORTUNITY_STATUS_BADGE[opportunity.status];
-  const deadlineDays = daysUntil(opportunity.applyDeadline);
+  const deadlinePassed = isDeadlinePassed(opportunity.applyDeadlineAt);
+  const deadlineDays = daysUntil(opportunity.applyDeadlineAt ?? opportunity.applyDeadline);
   const spotsLeft = opportunity.capacity - opportunity.currentApplicants;
 
   return (
-    <SurfaceCard
-      spotlight
-      hover
-      padding="md"
-    >
+    <SurfaceCard spotlight hover padding="md">
       <Link href={`/opportunity/${opportunity.id}`} className="block">
         <div className="flex items-center justify-between mb-3">
           <Badge variant="default" size="sm">{opportunity.category}</Badge>
           <Badge variant={statusConfig.variant as any} size="sm">{statusConfig.label}</Badge>
         </div>
 
-        <h3 className="text-lg font-semibold text-text-primary mb-1 line-clamp-2">
-          {opportunity.title}
-        </h3>
+        <h3 className="text-lg font-semibold text-text-primary mb-1 line-clamp-2">{opportunity.title}</h3>
         <p className="text-sm text-muted mb-3">{opportunity.organizationName}</p>
 
         <div className="flex flex-wrap items-center gap-2 text-xs text-muted mb-3">
@@ -46,7 +55,12 @@ function OpportunityCard({ opportunity, applicationStatus }: OpportunityCardProp
             {opportunity.city}
           </span>
           <span>·</span>
-          <span>{opportunity.startDate}{opportunity.startDate !== opportunity.endDate ? ` — ${opportunity.endDate}` : ""}</span>
+          <span>
+              {opportunity.startAt
+                ? `${formatTzDate(opportunity.startAt)}${opportunity.endAt && formatTzDate(opportunity.startAt) !== formatTzDate(opportunity.endAt) ? ` — ${formatTzDate(opportunity.endAt)}` : ""}`
+                : `${formatDate(opportunity.startDate)}${opportunity.startDate !== opportunity.endDate ? ` — ${formatDate(opportunity.endDate)}` : ""}`
+              }
+            </span>
         </div>
 
         <div className="flex items-center justify-between">
@@ -59,10 +73,16 @@ function OpportunityCard({ opportunity, applicationStatus }: OpportunityCardProp
             </span>
           </div>
           <div className="text-right">
-            {deadlineDays > 0 ? (
-              <span className="text-xs text-muted">{deadlineDays}d left</span>
+            {applicationStatus ? (
+              <span className="text-xs text-muted">{statusConfig.label}</span>
+            ) : canApply ? (
+              deadlineDays > 0 ? (
+                <span className="text-xs text-muted">{deadlineDays}d left</span>
+              ) : (
+                <span className="text-xs text-muted">Apply</span>
+              )
             ) : (
-              <span className="text-xs text-danger">Deadline passed</span>
+              <span className="text-xs text-danger">{reasonToLabel(cannotApplyReason)}</span>
             )}
           </div>
         </div>

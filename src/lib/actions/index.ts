@@ -20,6 +20,7 @@ export {
 
 // Opportunities
 export {
+  canApply,
   listOpportunities,
   getOpportunity,
   createOpportunity,
@@ -68,7 +69,6 @@ export {
 export {
   getCurrentSeason,
   listSeasons,
-  getMyMiniGroup,
   getLeaderboard,
 } from "./seasons";
 

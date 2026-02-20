@@ -4,7 +4,7 @@ import { useMemo } from "react";
 import Link from "next/link";
 import { SurfaceCard } from "@/components/ui/SurfaceCard";
 import { Badge } from "@/components/ui/Badge";
-import { formatRelativeTime, formatDate } from "@/lib/utils";
+import { formatRelativeTime, formatDate, formatTzDate } from "@/lib/utils";
 import type { OrganizationProfile, AuditLogEntry, Season } from "@/types";
 
 interface AdminDashboardClientProps {
@@ -30,7 +30,7 @@ export function AdminDashboardClient({
       {
         label: "Active Season",
         value: season?.active
-          ? `${formatDate(season.startDate)} — ${formatDate(season.endDate)}`
+          ? `${season.startAt ? formatTzDate(season.startAt) : formatDate(season.startDate)} — ${season.endAt ? formatTzDate(season.endAt) : formatDate(season.endDate)}`
           : "None",
       },
     ],

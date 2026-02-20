@@ -30,13 +30,13 @@ yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
 
-# env files (keep .env.example as template)
+# env files
 .env
+.env.example
 .env.local
 .env.development.local
 .env.test.local
 .env.production.local
-!.env.example
 
 # vercel
 .vercel
@@ -61,5 +61,6 @@ Thumbs.db
 ehthumbs.db
 Desktop.ini
 
-# Cursor (local only)
+# cursor + docs
 .cursor/
+.docs/

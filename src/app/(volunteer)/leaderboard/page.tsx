@@ -1,72 +1,56 @@
 import { SurfaceCard } from "@/components/ui/SurfaceCard";
 import { Badge } from "@/components/ui/Badge";
 import { LEAGUE_CONFIG } from "@/lib/constants";
-import { formatDate } from "@/lib/utils";
+import { formatDate, formatTzDate } from "@/lib/utils";
 import { getSupabaseClient, getAuthUser } from "@/lib/supabase/user";
-import { mapMiniGroup, mapSeason, mapVolunteerProfile } from "@/lib/mappers";
-import { perfRoute, perfStart, perfEnd, perfSummary } from "@/lib/perf/timing";
+import { mapLeaderboardEntry, mapSeason, mapVolunteerProfile } from "@/lib/mappers";
+import type { League } from "@/types";
 
 export default async function LeaderboardPage() {
-  perfRoute("/leaderboard");
-  perfStart("auth");
   const [supabase, user] = await Promise.all([
     getSupabaseClient(),
     getAuthUser(),
   ]);
-  perfEnd("auth");
 
   if (!user) {
     return <p className="text-muted">Not authenticated.</p>;
   }
 
-  perfStart("db-queries");
-  const [groupRpcResult, profileResult] = await Promise.all([
-    supabase.rpc("get_my_mini_group"),
+  const [seasonResult, profileResult, leaderboardResult] = await Promise.all([
+    supabase
+      .from("seasons")
+      .select("*")
+      .eq("is_active", true)
+      .single(),
     supabase
       .from("volunteer_profiles")
       .select("*")
       .eq("id", user.id)
       .single(),
+    supabase
+      .from("volunteer_profiles")
+      .select("id, first_name, last_name, nickname, league, season_points, lifetime_hours")
+      .order("season_points", { ascending: false })
+      .order("lifetime_hours", { ascending: false })
+      .limit(50),
   ]);
-  perfEnd("db-queries");
 
-  perfStart("transform");
-  const rpcData = groupRpcResult.data as Record<string, any> | null;
-  const group = rpcData ? mapMiniGroup(rpcData) : null;
-  const season = rpcData?.season ? mapSeason(rpcData.season) : null;
+  const season = seasonResult.data ? mapSeason(seasonResult.data) : null;
   const vol = profileResult.data ? mapVolunteerProfile(profileResult.data) : null;
-  perfEnd("transform");
+  const allEntries = (leaderboardResult.data ?? []).map((row, idx) => mapLeaderboardEntry(row, idx + 1));
 
-  perfSummary();
-
-  if (!group) {
-    return (
-      <div className="max-w-3xl">
-        <h1 className="text-2xl font-bold text-text-primary mb-2">Leaderboard</h1>
-        {season && (
-          <p className="text-sm text-muted mb-6">
-            Season: {formatDate(season.startDate)} — {formatDate(season.endDate)}
-          </p>
-        )}
-        <SurfaceCard padding="lg" className="text-center">
-          <p className="text-sm text-muted">
-            You are not assigned to a mini-group yet. Groups are assigned at the start of each season.
-          </p>
-        </SurfaceCard>
-      </div>
-    );
-  }
-
-  const leagueCfg = LEAGUE_CONFIG[group.league];
-  const myRank = vol ? group.members.find((m) => m.volunteerId === vol.id) : null;
-  const topCount = group.members.length >= 15 ? 5 : 3;
+  const myLeague: League = vol?.league ?? "bronze";
+  const leagueEntries = allEntries.filter((e) => e.league === myLeague);
+  const myRank = vol ? leagueEntries.find((e) => e.volunteerId === vol.id) : null;
+  const leagueCfg = LEAGUE_CONFIG[myLeague];
+  const promoteCount = 5;
 
   return (
     <div className="max-w-3xl">
       <h1 className="text-2xl font-bold text-text-primary mb-2">Leaderboard</h1>
       {season && (
         <p className="text-sm text-muted mb-6">
-          Season: {formatDate(season.startDate)} — {formatDate(season.endDate)}
+          Season: {season.startAt ? formatTzDate(season.startAt) : formatDate(season.startDate)} — {season.endAt ? formatTzDate(season.endAt) : formatDate(season.endDate)}
         </p>
       )}
 
@@ -82,27 +66,27 @@ export default async function LeaderboardPage() {
               <Badge variant="default" size="md">
                 {leagueCfg.label} League
               </Badge>
-              <p className="text-sm text-muted mt-1">{myRank.points} points</p>
+              <p className="text-sm text-muted mt-1">{myRank.seasonPoints} points</p>
             </div>
           </div>
-          {myRank.rank <= topCount && (
+          {myRank.rank <= promoteCount && (
             <div className="mt-3 rounded-xl bg-success-light border border-success/20 p-3">
               <p className="text-xs font-medium text-success">
-                You are in the promotion zone! Top {topCount} get promoted to the next league.
+                You are in the promotion zone! Top {promoteCount} get promoted to the next league.
               </p>
             </div>
           )}
         </SurfaceCard>
       )}
 
-      {/* Group Table */}
+      {/* League Table */}
       <SurfaceCard padding="none" className="overflow-hidden">
         <div className="px-4 py-3 border-b border-border">
           <h2 className="text-base font-semibold text-text-primary">
-            {leagueCfg.label} League — Group
+            {leagueCfg.label} League
           </h2>
           <p className="text-xs text-muted">
-            {group.members.length} members · Top {topCount} promoted
+            {leagueEntries.length} volunteers · Top {promoteCount} promoted
           </p>
         </div>
         <table className="w-full text-sm">
@@ -114,12 +98,12 @@ export default async function LeaderboardPage() {
             </tr>
           </thead>
           <tbody>
-            {group.members.map((member) => {
-              const isMe = vol ? member.volunteerId === vol.id : false;
-              const inPromoZone = member.rank <= topCount;
+            {leagueEntries.map((entry) => {
+              const isMe = vol ? entry.volunteerId === vol.id : false;
+              const inPromoZone = entry.rank <= promoteCount;
               return (
                 <tr
-                  key={member.volunteerId}
+                  key={entry.volunteerId}
                   className={`border-b border-border transition-colors ${
                     isMe ? "bg-accent/5" : "hover:bg-surface-2/30"
                   }`}
@@ -128,24 +112,31 @@ export default async function LeaderboardPage() {
                     <span
                       className={`text-sm font-bold ${inPromoZone ? "text-success" : "text-muted"}`}
                     >
-                      #{member.rank}
+                      #{entry.rank}
                     </span>
                   </td>
                   <td className="px-4 py-2.5">
                     <span
                       className={`text-sm ${isMe ? "font-bold text-accent" : "text-text-primary"}`}
                     >
-                      {member.name} {isMe && "(You)"}
+                      {entry.name} {isMe && "(You)"}
                     </span>
                   </td>
                   <td className="px-4 py-2.5 text-right">
                     <span className="text-sm font-medium text-text-primary">
-                      {member.points}
+                      {entry.seasonPoints}
                     </span>
                   </td>
                 </tr>
               );
             })}
+            {leagueEntries.length === 0 && (
+              <tr>
+                <td colSpan={3} className="px-4 py-8 text-center text-muted">
+                  No volunteers in this league yet.
+                </td>
+              </tr>
+            )}
           </tbody>
         </table>
       </SurfaceCard>

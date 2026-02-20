@@ -6,7 +6,7 @@ import type {
   Notification,
   AuditLogEntry,
   Season,
-  MiniGroup,
+  LeaderboardEntry,
   CompletedEntry,
 } from "@/types";
 
@@ -25,7 +25,6 @@ export function mapVolunteerProfile(row: any): VolunteerProfile {
     league: row.league,
     seasonPoints: row.season_points ?? 0,
     lifetimeHours: Number(row.lifetime_hours ?? 0),
-    strikes: row.strikes ?? 0,
     avatarUrl: row.avatar_url ?? undefined,
   };
 }
@@ -48,10 +47,9 @@ export function mapOpportunity(row: any): Opportunity {
   if (!row) {
     throw new Error("Cannot map null or undefined opportunity row");
   }
-  
-  // Handle both direct organization_profiles and nested structure
+
   const orgProfiles = row.organization_profiles;
-  
+
   return {
     id: row.id,
     organizationId: row.organization_id,
@@ -66,13 +64,18 @@ export function mapOpportunity(row: any): Opportunity {
     endDate: row.end_date,
     startTime: row.start_time,
     endTime: row.end_time,
+    startAt: row.start_at ?? "",
+    endAt: row.end_at ?? "",
+    applyDeadlineAt: row.apply_deadline_at ?? "",
     plannedHours: Number(row.planned_hours ?? 0),
     capacity: row.capacity,
     currentApplicants: row.current_applicants ?? 0,
+    acceptedCount: row.accepted_count ?? 0,
     ageRestriction: row.age_restriction ?? undefined,
     contacts: row.contacts ?? {},
     pointsReward: row.points_reward,
-    status: row.status,
+    status: row.effective_status ?? row.status,
+    actualStatus: row.status,
   };
 }
 
@@ -81,10 +84,10 @@ export function mapApplication(row: any): Application {
   if (!row) {
     throw new Error("Cannot map null or undefined application row");
   }
-  
+
   const opp = row.opportunities;
   const oppOrgProfiles = opp?.organization_profiles;
-  
+
   return {
     id: row.id,
     volunteerId: row.volunteer_id,
@@ -104,6 +107,9 @@ export function mapApplication(row: any): Application {
           endDate: opp.end_date,
           startTime: opp.start_time,
           endTime: opp.end_time,
+          startAt: opp.start_at ?? "",
+          endAt: opp.end_at ?? "",
+          applyDeadlineAt: opp.apply_deadline_at ?? "",
           plannedHours: Number(opp.planned_hours ?? 0),
           capacity: opp.capacity ?? 0,
           currentApplicants: 0,
@@ -185,27 +191,22 @@ export function mapSeason(row: any): Season {
     id: row.id,
     startDate: row.start_date,
     endDate: row.end_date,
+    startAt: row.start_at ?? "",
+    endAt: row.end_at ?? "",
     durationDays: Number(row.duration_days) as 30 | 60 | 90 | 120,
     active: row.is_active ?? false,
   };
 }
 
-// ===== Mini Group =====
-export function mapMiniGroup(row: any): MiniGroup {
-  const members = (row.members ?? []).map((m: any, index: number) => ({
-    volunteerId: m.volunteer_id,
-    name: m.volunteer_profiles
-      ? (m.volunteer_profiles.nickname || `${m.volunteer_profiles.first_name} ${m.volunteer_profiles.last_name}`)
-      : "Unknown",
-    points: m.volunteer_profiles?.season_points ?? 0,
-    rank: index + 1,
-  }));
-
+// ===== Leaderboard Entry =====
+export function mapLeaderboardEntry(row: any, rank: number): LeaderboardEntry {
   return {
-    id: row.id,
+    volunteerId: row.id,
+    name: row.nickname || `${row.first_name} ${row.last_name}`,
     league: row.league,
-    seasonId: row.season_id,
-    members,
+    seasonPoints: row.season_points ?? 0,
+    lifetimeHours: Number(row.lifetime_hours ?? 0),
+    rank,
   };
 }
 

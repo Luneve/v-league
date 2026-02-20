@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { SurfaceCard } from "@/components/ui/SurfaceCard";
@@ -33,8 +33,12 @@ export function CandidatesClient({
   const router = useRouter();
   const { toast } = useToast();
 
-  const [opportunity] = useState(initialOpportunity);
+  const [opportunity, setOpportunity] = useState(initialOpportunity);
   const [candidates, setCandidates] = useState(initialCandidates);
+  useEffect(() => {
+    setOpportunity(initialOpportunity);
+    setCandidates(initialCandidates);
+  }, [initialOpportunity, initialCandidates]);
 
   const [selectedApp, setSelectedApp] = useState<Application | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -49,7 +53,17 @@ export function CandidatesClient({
     rejected: candidates.filter((a) => a.status === "rejected").length,
   };
 
-  const eventPassed = new Date(`${opportunity.endDate}T${opportunity.endTime}`) < new Date();
+  // Allow marking completion if opportunity is closed OR event has started (use actual status, not effective_status)
+  const oppStatus = opportunity.actualStatus ?? opportunity.status;
+  const canMarkCompletion = oppStatus === "closed" || new Date(opportunity.startAt) <= new Date();
+
+  const actionToStatus: Record<string, Application["status"]> = {
+    accept: "accepted",
+    waitlist: "waitlist",
+    reject: "rejected",
+    complete: "completed",
+    no_show: "no_show",
+  };
 
   const handleAction = async (app: Application, action: string) => {
     setActionLoading(true);
@@ -70,6 +84,11 @@ export function CandidatesClient({
     if (error) {
       toast("error", error);
     } else {
+      const newStatus = actionToStatus[action];
+      setCandidates((prev) => prev.map((c) => (c.id === app.id ? { ...c, status: newStatus } : c)));
+      if (selectedApp?.id === app.id) {
+        setSelectedApp((prev) => (prev ? { ...prev, status: newStatus } : null));
+      }
       const actionLabels: Record<string, string> = {
         accept: "Candidate accepted.",
         waitlist: "Candidate waitlisted.",
@@ -83,13 +102,18 @@ export function CandidatesClient({
 
   const handleNoShow = async () => {
     if (!noShowModal) return;
+    const app = noShowModal;
     setActionLoading(true);
-    const { error } = await markCompletion(noShowModal.id, "no_show");
+    const { error } = await markCompletion(app.id, "no_show");
     setActionLoading(false);
     if (error) {
       toast("error", error);
     } else {
-      toast("error", `${noShowModal.volunteerName || "Volunteer"} marked as no-show. Penalty and strike applied.`);
+      setCandidates((prev) => prev.map((c) => (c.id === app.id ? { ...c, status: "no_show" as const } : c)));
+      if (selectedApp?.id === app.id) {
+        setSelectedApp((prev) => (prev ? { ...prev, status: "no_show" as const } : null));
+      }
+      toast("error", `${app.volunteerName || "Volunteer"} marked as no-show. Points penalty applied.`);
       router.refresh();
     }
     setNoShowModal(null);
@@ -198,7 +222,7 @@ export function CandidatesClient({
                               <Button size="sm" variant="ghost" className="text-danger" disabled={actionLoading} onClick={() => handleAction(app, "reject")}>Reject</Button>
                             </>
                           )}
-                          {app.status === "accepted" && eventPassed && (
+                          {app.status === "accepted" && canMarkCompletion && (
                             <>
                               <Button size="sm" variant="primary" disabled={actionLoading} onClick={() => handleAction(app, "complete")}>Complete</Button>
                               <Button size="sm" variant="danger" disabled={actionLoading} onClick={() => setNoShowModal(app)}>No-Show</Button>
@@ -227,11 +251,13 @@ export function CandidatesClient({
               <Button variant="outline" disabled={actionLoading} onClick={() => { handleAction(selectedApp, "waitlist"); setDrawerOpen(false); }}>Waitlist</Button>
               <Button variant="danger" disabled={actionLoading} onClick={() => { handleAction(selectedApp, "reject"); setDrawerOpen(false); }}>Reject</Button>
             </>
-          ) : selectedApp && selectedApp.status === "accepted" && eventPassed ? (
+          ) : selectedApp && selectedApp.status === "accepted" && canMarkCompletion ? (
             <>
               <Button variant="primary" disabled={actionLoading} onClick={() => { handleAction(selectedApp, "complete"); setDrawerOpen(false); }}>Mark Completed</Button>
               <Button variant="danger" disabled={actionLoading} onClick={() => { setNoShowModal(selectedApp); setDrawerOpen(false); }}>Mark No-Show</Button>
             </>
+          ) : selectedApp && (selectedApp.status === "completed" || selectedApp.status === "no_show") ? (
+            <p className="text-sm text-muted">No further actions for this volunteer.</p>
           ) : undefined
         }
       >
@@ -303,7 +329,7 @@ export function CandidatesClient({
       >
         {noShowModal && (
           <p className="text-sm text-text-primary">
-            <strong>{noShowModal.volunteerName || "This volunteer"}</strong> will receive a points penalty and 1 strike. This action cannot be undone.
+            <strong>{noShowModal.volunteerName || "This volunteer"}</strong> will receive a points penalty. This action cannot be undone.
           </p>
         )}
       </Modal>
