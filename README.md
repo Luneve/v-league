@@ -14,7 +14,7 @@
 
 ---
 
-## Key Features (verified in code)
+## Key Features
 
 | Feature | Roles | Evidence |
 |---|---|---|
